@@ -1,0 +1,27 @@
+{
+  "name": "kingdom-journey",
+  "version": "1.0.0",
+  "description": "Application chrétienne interactive multi-utilisateurs",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/supabase-js": "^2.43.0",
+    "axios": "^1.6.8",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "next": "14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "babel-loader": "^10.1.1",
+    "typescript": "^5.4.0"
+  }
+}
