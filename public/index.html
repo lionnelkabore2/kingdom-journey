@@ -590,8 +590,10 @@ function renderQResult(){
 }
 
 function share(){
-  var txt=t("share_txt")+" "+S.qsc+"/20 · 🏆 "+S.score+" pts\n\nQuiz Biblique C.E.V — Rejoins-nous !";
-  if(navigator.share)navigator.share({title:"Quiz Biblique C.E.V",text:txt});
+  var txt=t("share_txt")+" "+S.qsc+"/20 · 🏆 "+S.score+" pts\n\n";
+  txt+=S.lang==="fr"?"Peux-tu faire mieux ? Viens me défier !":"Can you do better? Come challenge me!\n\n";
+  txt+="✝️ Quiz Biblique C.E.V\n👉 https://kingdom-journey.vercel.app";
+  if(navigator.share)navigator.share({title:"Quiz Biblique C.E.V",text:txt,url:"https://kingdom-journey.vercel.app"});
   else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
 }
 
