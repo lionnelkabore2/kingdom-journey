@@ -268,7 +268,7 @@ html,body{min-height:100%;font-family:Nunito,sans-serif;background:var(--cream);
 // ── SUPABASE ──────────────────────────────────────────────
 var SB_URL="https://xqcaiqnivxhgcxuxgqqy.supabase.co";
 var SB_KEY="sb_publishable_oFgJJ9PzpEVSVzImdyfh5g_4N5NY99B";
-async function sbFetch(path,opts){var url=SB_URL+"/rest/v1/"+path;var authTok=(opts&&opts.headers&&opts.headers["Authorization"])?opts.headers["Authorization"]:"Bearer "+SB_KEY;var headers={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":authTok,"Prefer":"return=representation"};if(opts&&opts.headers)Object.assign(headers,opts.headers);var res=await fetch(url,Object.assign({headers:headers},opts||{}));var text=await res.text();try{return{ok:res.ok,status:res.status,data:text?JSON.parse(text):null};}catch(e){return{ok:res.ok,status:res.status,data:text};}}
+async function sbFetch(path,opts){var url=SB_URL+"/rest/v1/"+path;var headers={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+(S.token||SB_KEY),"Prefer":"return=representation"};if(opts&&opts.headers)Object.assign(headers,opts.headers);var res=await fetch(url,Object.assign({headers:headers},opts||{}));var text=await res.text();try{return{ok:res.ok,status:res.status,data:text?JSON.parse(text):null};}catch(e){return{ok:res.ok,status:res.status,data:text};}}
 async function sbAuth(action,body){var url=SB_URL+"/auth/v1/"+action;var res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});var d=await res.json();return{ok:res.ok,data:d};}
 // ── STATE ─────────────────────────────────────────────────
 var S={user:null,token:null,lang:"fr",mode:"reg",opt:"email",score:0,qc:0,lvl:"easy",qi:0,qsc:0,qans:false,tq:{easy:[],medium:[],hard:[]}};
@@ -284,12 +284,9 @@ function selOpt(opt,btn){S.opt=opt;document.querySelectorAll(".aoptb").forEach(f
 function toggleLogin(){S.mode=S.mode==="reg"?"login":"reg";document.getElementById("ac-title").textContent=t(S.mode==="reg"?"join":"signin");applyLangUI();if(S.mode==="login"){document.getElementById("aopt-box").style.display="none";selOpt("email",document.querySelector(".aoptb"));}else{document.getElementById("aopt-box").style.display="flex";document.getElementById("form-email").style.display="none";document.getElementById("form-name").style.display="none";}}
 function showMsg(msg,type){var el=document.getElementById("amsg");el.textContent=msg;el.className="amsg "+(type||"err");el.style.display="block";}
 async function doAuth(){var btn=document.getElementById("abtn");btn.textContent=t("loading");btn.disabled=true;document.getElementById("amsg").style.display="none";try{if(S.mode==="login")await doLogin();else if(S.opt==="email")await doRegEmail();else await doRegName();}catch(e){showMsg("Erreur: "+e.message);}btn.textContent=t("start");btn.disabled=false;}
-function normPrenom(s){
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9 _-]/g,"").trim();
-}
-async function doRegEmail(){var prenom=document.getElementById("inp-prenom").value.trim();var email=document.getElementById("inp-email").value.trim();var pw=document.getElementById("inp-pw").value;var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";if(!prenom||!email||!pw){showMsg(t("err_fields"));return;}var prenomClean=normPrenom(prenom)||prenom.slice(0,20);var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,ville:ville}}});if(!r.ok){showMsg(r.data.error_description||r.data.msg||"Erreur inscription");return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg("Erreur: pas d'utilisateur");return;}await createProfile(uid,prenomClean,ville,tok);await loginSuccess(uid,prenomClean,ville,0,tok);}
+async function doRegEmail(){var prenom=document.getElementById("inp-prenom").value.trim();var email=document.getElementById("inp-email").value.trim();var pw=document.getElementById("inp-pw").value;var ville=document.getElementById("inp-ville").value.trim()||"Non précisée";if(!prenom||!email||!pw){showMsg(t("err_fields"));return;}var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenom,ville:ville}}});if(!r.ok){showMsg(r.data.error_description||r.data.msg||"Erreur inscription");return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg("Erreur: pas d'utilisateur");return;}await createProfile(uid,prenom,ville,tok);await loginSuccess(uid,prenom,ville,0,tok);}
 async function doLogin(){var email=document.getElementById("inp-email").value.trim();var pw=document.getElementById("inp-pw").value;if(!email||!pw){showMsg(t("err_fields"));return;}var r=await sbAuth("token?grant_type=password",{email:email,password:pw});if(!r.ok){showMsg(t("err_login"));return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg(t("err_login"));return;}var prof=await getProfile(uid,tok);if(!prof){await createProfile(uid,email.split("@")[0],"Non précisée",tok);prof={prenom:email.split("@")[0],ville:"Non précisée",score_total:0};}await loginSuccess(uid,prof.prenom,prof.ville,prof.score_total||0,tok);}
-async function doRegName(){var prenom=document.getElementById("inp-prenom2").value.trim();var ville=document.getElementById("inp-ville2").value.trim()||"Non precisee";if(!prenom){showMsg(t("err_fields"));return;}var prenomClean=normPrenom(prenom)||prenom.slice(0,20);var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,ville:ville}}});if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg("Erreur creation");return;}await createProfile(uid,prenomClean,ville,tok);await loginSuccess(uid,prenomClean,ville,0,tok);}
+async function doRegName(){var prenom=document.getElementById("inp-prenom2").value.trim();var ville=document.getElementById("inp-ville2").value.trim()||"Non précisée";if(!prenom){showMsg(t("err_fields"));return;}var fakeEmail=prenom.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenom,ville:ville}}});if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg("Erreur création");return;}await createProfile(uid,prenom,ville,tok);await loginSuccess(uid,prenom,ville,0,tok);}
 async function createProfile(uid,prenom,ville,tok){var today=todayStr();await sbFetch("cev_profiles?on_conflict=id",{method:"POST",headers:{"Authorization":"Bearer "+tok,"Prefer":"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({id:uid,prenom:prenom,ville:ville,score_today:0,score_total:0,quiz_count:0,last_day:today,streak:0})});}
 async function getProfile(uid,tok){var r=await sbFetch("cev_profiles?id=eq."+uid+"&select=*",{headers:{"Authorization":"Bearer "+tok}});return r.data&&r.data[0]?r.data[0]:null;}
 async function loginSuccess(uid,prenom,ville,score,tok){S.user={id:uid,prenom:prenom,ville:ville};S.token=tok;S.score=score||0;localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,ville:ville,score:score||0,token:tok,day:todayStr()}));document.getElementById("ao").classList.add("h");initApp();}
@@ -509,18 +506,17 @@ function getDV(){return DAILY[new Date().getDate()%DAILY.length];}
 // ── QUIZ LOGIC ─────────────────────────────────────────────
 function shuffle(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=b[i];b[i]=b[j];b[j]=tmp;}return b;}
 function getTQ(lvl){return shuffle(QS[lvl]).slice(0,20);}
-function getUsedKey(lvl){return"cev_used_"+todayStr()+"_"+(S.user?S.user.id:"")+"_"+(lvl||S.lvl);}
-function getUsed(lvl){try{return parseInt(localStorage.getItem(getUsedKey(lvl||S.lvl))||"0");}catch(e){return 0;}}
-function incUsed(){try{var k=getUsedKey(S.lvl);localStorage.setItem(k,getUsed(S.lvl)+1);}catch(e){}}
-function getLeft(){return Math.max(0,20-getUsed(S.lvl));}
+function getUsedKey(){return"cev_used_"+todayStr()+"_"+(S.user?S.user.id:"");}
+function getUsed(){try{return parseInt(localStorage.getItem(getUsedKey())||"0");}catch(e){return 0;}}
+function incUsed(){try{localStorage.setItem(getUsedKey(),getUsed()+1);}catch(e){}}
+function getLeft(){return Math.max(0,20-getUsed());}
 
-function setLvl(level,btn){S.lvl=level;S.qi=0;S.qsc=0;S.qans=false;S.tq[level]=getTQ(level);document.querySelectorAll(".lt").forEach(function(t){t.classList.remove("active");});btn.classList.add("active");renderQuiz();}
+function setLvl(level,btn){S.lvl=level;S.qi=0;S.qsc=0;S.qans=false;document.querySelectorAll(".lt").forEach(function(t){t.classList.remove("active");});btn.classList.add("active");renderQuiz();}
 
 function renderQuiz(){
   var area=document.getElementById("qa");if(!area)return;
   var left=getLeft();
   var qleft=document.getElementById("qleft");if(qleft)qleft.textContent=left;
-  var lvlInfo={easy:S.lang==="en"?"Beginner: +1 / 0":"Debutant: +1 / 0",medium:S.lang==="en"?"Intermediate: +2 / -4":"Intermediaire: +2 / -4",hard:S.lang==="en"?"Advanced: +3 / -6":"Avance: +3 / -6"};
   if(left<=0){
     var v=getDV();
     var h='<div class="qd"><div style="font-size:38px;margin-bottom:12px">⏰</div>';
@@ -534,11 +530,10 @@ function renderQuiz(){
     area.innerHTML=h;return;
   }
   if(!S.tq[S.lvl]||S.tq[S.lvl].length===0)S.tq[S.lvl]=getTQ(S.lvl);
-  if(S.qi>=20){saveScore();renderQResult();return;}
+  if(S.qi>=20){renderQResult();return;}
   var q=S.tq[S.lvl][S.qi],pct=Math.round((S.qi/20)*100);
   var qtext=S.lang==="en"&&q.qe?q.qe:q.q;
   var h='<div class="qc">';
-  h+='<div style="font-size:9px;color:var(--goldd);font-weight:700;margin-bottom:6px">'+lvlInfo[S.lvl]+'</div>';
   h+='<div class="qp"><div class="pb"><div class="pf" style="width:'+pct+'%"></div></div>';
   h+='<span class="qnn">'+(S.qi+1)+'/20 · <strong style="color:var(--navy)">'+left+' ⏳</strong></span></div>';
   h+='<div class="qref">📖 Louis Segond 1910 · '+q.ref+'</div>';
@@ -553,24 +548,15 @@ function renderQuiz(){
   area.innerHTML=h;
 }
 
-function getLvlPts(lvl,ok){
-  if(lvl==="easy")return ok?1:0;
-  if(lvl==="medium")return ok?2:-4;
-  if(lvl==="hard")return ok?3:-6;
-  return ok?1:0;
-}
 function ansQ(c){
   if(S.qans)return;S.qans=true;
   incUsed();
   var q=S.tq[S.lvl][S.qi],ok=q.ans===c;
-  var pts=getLvlPts(S.lvl,ok);
-  if(ok)S.qsc++;
-  addScore(pts);
+  if(ok){S.qsc++;addScore(10);}
   for(var i=0;i<4;i++){var b=document.getElementById("o"+i);if(b){b.style.pointerEvents="none";if(i===q.ans)b.classList.add("ok");else if(i===c&&!ok)b.classList.add("ng");}}
   var fb=document.getElementById("fb");
   var correctTxt=q.opts[q.ans];if(correctTxt.indexOf(" / ")>=0){correctTxt=S.lang==="en"?correctTxt.split(" / ")[1]:correctTxt.split(" / ")[0];}
-  var ptsMsg=pts>0?' <span style="color:#16A34A;font-weight:800">+'+pts+' pts</span>':pts<0?' <span style="color:#DC2626;font-weight:800">'+pts+' pts</span>':"";
-  if(fb){fb.className="fb show "+(ok?"ok":"ng");fb.innerHTML="<strong>"+(ok?t("correct"):t("wrong"))+"</strong>"+ptsMsg+" "+(ok?t("well_done"):t("good_ans")+" <strong>"+correctTxt+"</strong>")+'<div class="fv">📖 '+q.verse+'</div>';}
+  if(fb){fb.className="fb show "+(ok?"ok":"ng");fb.innerHTML="<strong>"+(ok?t("correct"):t("wrong"))+"</strong> "+(ok?t("well_done"):t("good_ans")+" <strong>"+correctTxt+"</strong>")+'<div class="fv">📖 '+q.verse+'</div>';}
   var nb=document.getElementById("nb");if(nb)nb.classList.add("show");
 }
 
@@ -606,7 +592,7 @@ function addScore(pts){
 async function saveScore(){
   if(!S.user||!S.token)return;
   try{
-    await sbFetch("cev_scores?on_conflict=user_id,day",{method:"POST",headers:{"Authorization":"Bearer "+S.token,"Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:S.user.id,prenom:S.user.prenom,ville:S.user.ville||"Non precisee",score:Math.max(0,S.score),day:todayStr()})});
+    await sbFetch("cev_scores?on_conflict=user_id,day",{method:"POST",headers:{"Authorization":"Bearer "+S.token,"Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:S.user.id,prenom:S.user.prenom,ville:S.user.ville||"Non précisée",score:S.score,day:todayStr()})});
   }catch(e){console.log("save score err",e);}
 }
 
@@ -614,7 +600,7 @@ async function renderCls(){
   var area=document.getElementById("cla");if(!area)return;
   area.innerHTML='<div class="loader"><div class="spin"></div>'+t("loading")+'</div>';
   var today=todayStr();
-  var r=await sbFetch("cev_scores?day=eq."+today+"&order=score.desc&limit=10",{headers:{"Authorization":"Bearer "+SB_KEY}});
+  var r=await sbFetch("cev_scores?day=eq."+today+"&order=score.desc&limit=10");
   var list=(r.ok&&r.data)?r.data:[];
   var uid=S.user?S.user.id:null;
   var h='<div class="clh"><div style="font-size:30px;margin-bottom:8px">🏆</div><h2>'+t("cls_today")+'</h2><p>'+t("cls_reset")+'</p><div class="cld">📅 '+new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long"})+'</div><div class="online-badge"><span class="dot"></span>'+t("online")+'</div></div>';
