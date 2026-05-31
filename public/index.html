@@ -597,7 +597,7 @@ function share(){
 
 // ── SCORE & SUPABASE ───────────────────────────────────────
 function addScore(pts){
-  S.score+=pts;
+  S.score=Math.max(0,S.score+pts);
   var ts=document.getElementById("ts");if(ts)ts.textContent="🏆 "+S.score+" pts";
   var ss=document.getElementById("ss");if(ss)ss.textContent=S.score;
   try{var sess=JSON.parse(localStorage.getItem("cev_session")||"{}");sess.score=S.score;sess.day=todayStr();localStorage.setItem("cev_session",JSON.stringify(sess));}catch(e){}
@@ -606,44 +606,119 @@ function addScore(pts){
 async function saveScore(){
   if(!S.user||!S.token)return;
   try{
-    await sbFetch("cev_scores?on_conflict=user_id,day",{method:"POST",headers:{"Authorization":"Bearer "+S.token,"Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:S.user.id,prenom:S.user.prenom,ville:S.user.ville||"Non precisee",score:Math.max(0,S.score),day:todayStr()})});
-  }catch(e){console.log("save score err",e);}
+    var today=todayStr();
+    var d=new Date();
+    var week=today.slice(0,4)+"-W"+String(Math.ceil(((d-new Date(d.getFullYear(),0,1))/86400000+new Date(d.getFullYear(),0,1).getDay()+1)/7)).padStart(2,"0");
+    var month=today.slice(0,7);
+    var body={user_id:S.user.id,prenom:S.user.prenom,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
+    var r=await fetch(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=merge-duplicates,return=representation"},
+      body:JSON.stringify(body)
+    });
+    console.log("saveScore status:",r.status);
+  }catch(e){console.log("saveScore err:",e);}
+}
+
+// Classement : period = "day" | "week" | "month"
+var CLS_PERIOD="day";
+
+async function fetchCls(period){
+  var today=todayStr();
+  var d=new Date();
+  var week=today.slice(0,4)+"-W"+String(Math.ceil(((d-new Date(d.getFullYear(),0,1))/86400000+new Date(d.getFullYear(),0,1).getDay()+1)/7)).padStart(2,"0");
+  var month=today.slice(0,7);
+  var filter=period==="day"?"day=eq."+today:period==="week"?"week=eq."+week:"month=eq."+month;
+  // Pour le classement semaine/mois, on prend le max score par user
+  var url=SB_URL+"/rest/v1/cev_scores?"+filter+"&order=score.desc&limit=20";
+  var r=await fetch(url,{headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});
+  var text=await r.text();
+  console.log("fetchCls status:",r.status,"period:",period,"data:",text.slice(0,200));
+  try{return{ok:r.ok,data:JSON.parse(text)};}catch(e){return{ok:false,data:[]};}
 }
 
 async function renderCls(){
   var area=document.getElementById("cla");if(!area)return;
   area.innerHTML='<div class="loader"><div class="spin"></div>'+t("loading")+'</div>';
-  var today=todayStr();
-  var r=await sbFetch("cev_scores?day=eq."+today+"&order=score.desc&limit=10",{headers:{"Authorization":"Bearer "+SB_KEY}});
-  var list=(r.ok&&r.data)?r.data:[];
+
+  // Onglets période
+  var tabs='<div style="display:flex;gap:5px;margin-bottom:13px">';
+  var periods=[["day","📅 Jour"],["week","📆 Semaine"],["month","🗓 Mois"]];
+  for(var p=0;p<periods.length;p++){
+    var pid=periods[p][0],plbl=periods[p][1];
+    var active=CLS_PERIOD===pid?"background:var(--navy);color:var(--gold);border-color:var(--navy)":"background:#fff;color:var(--gray)";
+    tabs+='<button onclick="setCLSPeriod(\''+pid+'\')" style="flex:1;padding:8px 4px;border:2px solid #E5E7EB;border-radius:8px;font-family:Nunito,sans-serif;font-weight:700;font-size:10px;cursor:pointer;'+active+'">'+plbl+'</button>';
+  }
+  tabs+='</div>';
+
+  var r=await fetchCls(CLS_PERIOD);
+  var list=r.ok&&Array.isArray(r.data)?r.data:[];
+
+  // Déduplique par user_id (garde le max score pour semaine/mois)
+  var seen={},uniq=[];
+  for(var x=0;x<list.length;x++){
+    var row=list[x];
+    if(!seen[row.user_id]){seen[row.user_id]=true;uniq.push(row);}
+  }
+  list=uniq.slice(0,10);
+
   var uid=S.user?S.user.id:null;
-  var h='<div class="clh"><div style="font-size:30px;margin-bottom:8px">🏆</div><h2>'+t("cls_today")+'</h2><p>'+t("cls_reset")+'</p><div class="cld">📅 '+new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long"})+'</div><div class="online-badge"><span class="dot"></span>'+t("online")+'</div></div>';
+  var today=todayStr();
+  var periodLabel=CLS_PERIOD==="day"?new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long"}):CLS_PERIOD==="week"?"Semaine en cours":"Mois en cours";
+
+  var h=tabs;
+  h+='<div class="clh"><div style="font-size:28px;margin-bottom:6px">🏆</div>';
+  h+='<h2>'+(CLS_PERIOD==="day"?"Classement du Jour":CLS_PERIOD==="week"?"Classement de la Semaine":"Classement du Mois")+'</h2>';
+  h+='<p style="color:rgba(255,255,255,.6);font-size:10px">'+periodLabel+'</p>';
+  h+='<div class="online-badge"><span class="dot"></span>'+t("online")+'</div></div>';
+
   if(S.user){
     var myScore=S.score;
     var mr=list.findIndex(function(rr){return rr.user_id===uid;})+1;
-    h+='<div class="msc"><h3>'+t("my_score")+'</h3><div class="msg2"><div class="msi"><div class="msn">'+myScore+'</div><div class="msl">'+t("score_lbl")+'</div></div><div class="msi"><div class="msn">'+(mr>0?"#"+mr:"—")+'</div><div class="msl">'+t("rang")+'</div></div><div class="msi"><div class="msn">'+getLeft()+'</div><div class="msl">'+t("q_left")+'</div></div></div></div>';
+    h+='<div class="msc"><h3>'+t("my_score")+'</h3><div class="msg2">';
+    h+='<div class="msi"><div class="msn">'+myScore+'</div><div class="msl">'+t("score_lbl")+'</div></div>';
+    h+='<div class="msi"><div class="msn">'+(mr>0?"#"+mr:"—")+'</div><div class="msl">'+t("rang")+'</div></div>';
+    h+='<div class="msi"><div class="msn">'+getLeft()+'</div><div class="msl">'+t("q_left")+'</div></div>';
+    h+='</div></div>';
   }
-  if(list.length===0){h+='<div class="cll"><div class="ecl">'+t("no_players")+'</div></div>';area.innerHTML=h;return;}
+
+  if(list.length===0){
+    h+='<div class="cll"><div class="ecl">🙏 '+(S.lang==="fr"?"Aucun joueur encore.<br>Joue au Quiz pour apparaître ici !":"No players yet.<br>Play the Quiz to appear here!")+'</div></div>';
+    area.innerHTML=h;return;
+  }
+
+  // Podium top 3
   if(list.length>=1){
     h+='<div class="pod">';
-    var orders=list.length>=3?[1,0,2]:list.length===2?[1,0]:[0];
-    var rnks=["🥇","🥈","🥉"],cls=["p2","p1","p3"];
-    for(var pi=0;pi<orders.length;pi++){
-      var idx=orders[pi];if(idx>=list.length)continue;
-      var p=list[idx];var init=(p.prenom?p.prenom[0]:"").toUpperCase();
-      h+='<div class="pi '+cls[pi]+'"><span class="prk">'+rnks[idx]+'</span><div class="pav">'+init+'</div><div class="pnm">'+(p.prenom||"?")+'</div><div class="psc">'+p.score+' pts</div><div class="pbl"></div></div>';
+    var podOrders=list.length>=3?[1,0,2]:list.length===2?[1,0]:[0];
+    var podRnks=["🥇","🥈","🥉"],podCls=["p2","p1","p3"];
+    for(var pi=0;pi<podOrders.length;pi++){
+      var idx=podOrders[pi];if(idx>=list.length)continue;
+      var pp=list[idx];var init=(pp.prenom?pp.prenom[0]:"?").toUpperCase();
+      h+='<div class="pi '+podCls[pi]+'"><span class="prk">'+podRnks[idx]+'</span>';
+      h+='<div class="pav">'+init+'</div>';
+      h+='<div class="pnm">'+(pp.prenom||"?")+'</div>';
+      h+='<div class="psc">'+pp.score+' pts</div>';
+      h+='<div class="pbl"></div></div>';
     }
     h+='</div>';
   }
-  h+='<div class="cll"><div class="cllt">🏅 Top 10 · '+new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{day:"numeric",month:"short"})+'</div>';
+
+  h+='<div class="cll"><div class="cllt">🏅 Top 10</div>';
   for(var i=0;i<list.length;i++){
     var row=list[i],isMe=(row.user_id===uid);
     var init2=(row.prenom?row.prenom[0]:"?").toUpperCase();
-    h+='<div class="rr'+(isMe?" me":"")+'"><div class="rn">'+(i+1)+'</div><div class="rav">'+init2+'</div><div class="rin"><div class="rnm">'+(isMe?"⭐ ":"")+(row.prenom||"?")+'</div><div class="rvi">📍 '+(row.ville||"—")+'</div></div><div class="rsc">'+row.score+' pts</div></div>';
+    h+='<div class="rr'+(isMe?" me":"")+'"><div class="rn">'+(i+1)+'</div>';
+    h+='<div class="rav">'+init2+'</div>';
+    h+='<div class="rin"><div class="rnm">'+(isMe?"⭐ ":"")+(row.prenom||"?")+'</div>';
+    h+='<div class="rvi">📍 '+(row.ville||"—")+'</div></div>';
+    h+='<div class="rsc">'+row.score+' pts</div></div>';
   }
   h+='</div>';
   area.innerHTML=h;
 }
+
+function setCLSPeriod(p){CLS_PERIOD=p;renderCls();}
 
 function renderVerset(){
   var v=getDV();var vc=document.getElementById("vcont");if(!vc)return;
