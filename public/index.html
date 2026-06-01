@@ -840,6 +840,8 @@ function getLvlPts(diff,ok){
 
 function ansQ(c){
   if(S.qans)return;S.qans=true;
+  // Arrêter immédiatement toute lecture en cours
+  stopSpeak();
   incUsed();
   var q=S.tq.mixed[S.qi];
   var diff=q.diff||"easy";
@@ -879,6 +881,7 @@ function launchMiniConfetti(){
 }
 
 function nextQ(){
+  stopSpeak();
   S.qi++;S.qans=false;
   if(S.qi>=20||getLeft()<=0){saveScore();renderQResult();}
   else renderQuiz();
