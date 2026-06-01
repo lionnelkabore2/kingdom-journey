@@ -919,15 +919,6 @@ function setCLSPeriod(p){CLS_PERIOD=p;renderCls();}
 function renderVerset(){
   var v=getDV();var vc=document.getElementById("vcont");if(!vc)return;
   var dateStr=new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-  var shareVerse=function(){
-    var txt=(S.lang==="fr"?"✝️ Verset du Jour — Quiz Biblique C.E.V\n\n":"✝️ Verse of the Day — Bible Quiz C.E.V\n\n");
-    txt+='"'+v.text+'"\n— '+v.ref+' (Louis Segond 1910)\n\n';
-    txt+=(S.lang==="fr"?"Défi : "+v.defi+"\n\n":"Challenge: "+v.defi+"\n\n");
-    txt+="👉 https://kingdom-journey.vercel.app";
-    if(navigator.share)navigator.share({title:"Quiz Biblique C.E.V",text:txt,url:"https://kingdom-journey.vercel.app"});
-    else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-  };
-  window._shareVerse=shareVerse;
   var h='<div class="vh">';
   h+='<div class="vd">📅 '+dateStr+'</div>';
   h+='<div class="vte">"'+v.text+'"</div>';
@@ -937,11 +928,151 @@ function renderVerset(){
   h+='<div style="background:#fff;border-radius:16px;padding:14px;box-shadow:var(--sh);border-left:4px solid var(--purple);margin-bottom:11px">';
   h+='<h3 style="font-size:11px;font-weight:800;color:var(--purple);margin-bottom:5px">'+t("defi_title")+'</h3>';
   h+='<p style="font-size:11px;color:var(--dark);line-height:1.6">'+v.defi+'</p></div>';
+  h+='<canvas id="verse-canvas" style="display:none"></canvas>';
   h+='<div style="display:flex;gap:8px">';
-  h+='<button class="bwh" style="flex:1" onclick="window._shareVerse()">📲 '+(S.lang==="fr"?"Partager ce verset":"Share this verse")+'</button>';
+  h+='<button class="bwh" style="flex:1" onclick="shareVerseAsImage()">🖼️ '+(S.lang==="fr"?"Partager en image":"Share as image")+'</button>';
   h+='<button class="bng" style="flex:1" onclick="goTo(\'quiz\')">📖 '+(S.lang==="fr"?"Jouer au Quiz":"Play Quiz")+'</button>';
   h+='</div>';
+  h+='<div id="verse-preview" style="margin-top:11px;display:none">';
+  h+='<img id="verse-img" style="width:100%;border-radius:16px;box-shadow:var(--sh)" />';
+  h+='<div style="display:flex;gap:8px;margin-top:8px">';
+  h+='<a id="verse-dl" download="verset-cev.png" class="bng" style="flex:1;text-align:center;text-decoration:none;padding:10px">⬇️ '+(S.lang==="fr"?"Télécharger":"Download")+'</a>';
+  h+='<button class="bwh" style="flex:1" onclick="shareVerseLink()">📲 WhatsApp</button>';
+  h+='</div></div>';
   vc.innerHTML=h;
+}
+
+function wrapText(ctx,text,x,y,maxW,lineH){
+  var words=text.split(' '),line='',lines=[];
+  for(var i=0;i<words.length;i++){
+    var test=line+words[i]+' ';
+    if(ctx.measureText(test).width>maxW&&line!==''){lines.push(line.trim());line=words[i]+' ';}
+    else{line=test;}
+  }
+  if(line.trim())lines.push(line.trim());
+  for(var j=0;j<lines.length;j++){ctx.fillText(lines[j],x,y+j*lineH);}
+  return lines.length;
+}
+
+function shareVerseAsImage(){
+  var v=getDV();
+  var canvas=document.getElementById("verse-canvas");
+  if(!canvas)return;
+  var W=800,H=800;
+  canvas.width=W;canvas.height=H;
+  var ctx=canvas.getContext("2d");
+
+  // Fond dégradé violet → bleu → vert
+  var grd=ctx.createLinearGradient(0,0,W,H);
+  grd.addColorStop(0,"#7C3AED");
+  grd.addColorStop(0.5,"#2563EB");
+  grd.addColorStop(1,"#059669");
+  ctx.fillStyle=grd;
+  ctx.fillRect(0,0,W,H);
+
+  // Cercles décoratifs semi-transparents
+  ctx.beginPath();ctx.arc(-60,H+60,300,0,Math.PI*2);
+  ctx.fillStyle="rgba(255,255,255,0.05)";ctx.fill();
+  ctx.beginPath();ctx.arc(W+60,-60,250,0,Math.PI*2);
+  ctx.fillStyle="rgba(255,255,255,0.06)";ctx.fill();
+  ctx.beginPath();ctx.arc(W/2,H/2,350,0,Math.PI*2);
+  ctx.fillStyle="rgba(255,255,255,0.03)";ctx.fill();
+
+  // Carte blanche centrale
+  var pad=50,cardX=pad,cardY=120,cardW=W-pad*2,cardH=H-240;
+  ctx.fillStyle="rgba(255,255,255,0.12)";
+  roundRect(ctx,cardX,cardY,cardW,cardH,24);ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,0.25)";ctx.lineWidth=1.5;
+  roundRect(ctx,cardX,cardY,cardW,cardH,24);ctx.stroke();
+
+  // Titre app
+  ctx.textAlign="center";
+  ctx.fillStyle="rgba(255,255,255,0.9)";
+  ctx.font="bold 22px Arial";
+  ctx.fillText("✝️ Quiz Biblique C.E.V",W/2,60);
+  ctx.font="13px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.6)";
+  ctx.fillText("Christ Est Vivant · Bible Louis Segond 1910",W/2,88);
+
+  // Guillemets décoratifs
+  ctx.font="bold 80px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.15)";
+  ctx.textAlign="left";
+  ctx.fillText('"',70,220);
+
+  // Texte du verset
+  ctx.font="italic bold 22px Arial";
+  ctx.fillStyle="#FFFFFF";
+  ctx.textAlign="center";
+  var textY=210;
+  var lines=wrapText(ctx,v.text,W/2,textY,cardW-80,34);
+  var afterTextY=textY+lines*34+20;
+
+  // Référence
+  ctx.font="bold 18px Arial";
+  ctx.fillStyle="#FEF3C7";
+  ctx.fillText("— "+v.ref,W/2,afterTextY+10);
+
+  // Séparateur
+  ctx.strokeStyle="rgba(255,255,255,0.3)";
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(pad+80,afterTextY+35);
+  ctx.lineTo(W-pad-80,afterTextY+35);
+  ctx.stroke();
+
+  // Défi
+  ctx.font="bold 14px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.8)";
+  var defiLabel=S.lang==="fr"?"📅 Défi du jour :":"📅 Daily Challenge:";
+  ctx.fillText(defiLabel,W/2,afterTextY+65);
+  ctx.font="13px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.9)";
+  wrapText(ctx,v.defi,W/2,afterTextY+90,cardW-100,22);
+
+  // Lien en bas
+  ctx.font="bold 14px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.7)";
+  ctx.fillText("👉 kingdom-journey.vercel.app",W/2,H-40);
+
+  // Afficher la prévisualisation
+  var dataURL=canvas.toDataURL("image/png");
+  var img=document.getElementById("verse-img");
+  var dl=document.getElementById("verse-dl");
+  var prev=document.getElementById("verse-preview");
+  if(img)img.src=dataURL;
+  if(dl)dl.href=dataURL;
+  if(prev)prev.style.display="block";
+
+  // Partager directement si l'API est disponible
+  canvas.toBlob(function(blob){
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([blob],"verset-cev.png",{type:"image/png"})]})){
+      navigator.share({
+        files:[new File([blob],"verset-cev.png",{type:"image/png"})],
+        title:"Quiz Biblique C.E.V",
+        text:"👉 https://kingdom-journey.vercel.app"
+      }).catch(function(){});
+    }
+  },"image/png");
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+function shareVerseLink(){
+  var txt="✝️ Quiz Biblique C.E.V\n👉 https://kingdom-journey.vercel.app";
+  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
 }
 
 // ── NAV & INIT ─────────────────────────────────────────────
