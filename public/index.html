@@ -555,7 +555,12 @@ var DAILY=[
 {ref:"Luc 4:18",text:"L'Esprit du Seigneur est sur moi, parce qu'il m'a oint pour annoncer une bonne nouvelle aux pauvres.",defi:"Aie un geste généreux envers une personne dans le besoin aujourd'hui."},
 {ref:"Jean 11:25",text:"Je suis la résurrection et la vie. Celui qui croit en moi vivra, quand même il serait mort.",defi:"Médite sur la promesse de la vie éternelle et laisse-la transformer ta journée."}
 ];
-function getDV(){return DAILY[new Date().getDate()%DAILY.length];}
+function getDV(){
+  // Utilise la date complète (YYYY-MM-DD) pour changer à chaque minuit
+  var d=new Date();
+  var seed=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
+  return DAILY[seed%DAILY.length];
+}
 
 // ── NIVEAU RPG ─────────────────────────────────────────────
 var LEVELS=[
@@ -725,6 +730,8 @@ function ansQ(c){
   if(fb){fb.className="fb show "+(ok?"ok":"ng");fb.innerHTML="<strong>"+(ok?t("correct"):t("wrong"))+"</strong>"+ptsMsg+" "+(ok?t("well_done"):t("good_ans")+" <strong>"+correctTxt+"</strong>")+'<div class="fv">📖 '+q.verse+'</div>';}
   var nb=document.getElementById("nb");if(nb)nb.classList.add("show");
   if(ok)launchMiniConfetti();
+  // Sauvegarde le score en temps réel après chaque réponse
+  saveScore();
 }
 
 function launchMiniConfetti(){
@@ -789,13 +796,22 @@ async function saveScore(){
     var d=new Date();
     var week=today.slice(0,4)+"-W"+String(Math.ceil(((d-new Date(d.getFullYear(),0,1))/86400000+new Date(d.getFullYear(),0,1).getDay()+1)/7)).padStart(2,"0");
     var month=today.slice(0,7);
+    // On envoie toujours le score total du jour (merge-duplicates met à jour si existe)
     var body={user_id:S.user.id,prenom:S.user.prenom,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
     var r=await fetch(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
       method:"POST",
       headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=merge-duplicates,return=representation"},
       body:JSON.stringify(body)
     });
-    console.log("saveScore status:",r.status);
+    if(!r.ok){
+      // Si conflit ou erreur, essayer un PATCH (mise à jour)
+      await fetch(SB_URL+"/rest/v1/cev_scores?user_id=eq."+S.user.id+"&day=eq."+today,{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
+        body:JSON.stringify({score:S.score,week:week,month:month})
+      });
+    }
+    console.log("saveScore OK score="+S.score);
   }catch(e){console.log("saveScore err:",e);}
 }
 
@@ -825,9 +841,10 @@ async function renderCls(){
   var periods=[["day","📅 Jour"],["week","📆 Semaine"],["month","🗓 Mois"]];
   for(var p=0;p<periods.length;p++){
     var pid=periods[p][0],plbl=periods[p][1];
-    var active=CLS_PERIOD===pid?"background:var(--navy);color:var(--gold);border-color:var(--navy)":"background:#fff;color:var(--gray)";
+    var active=CLS_PERIOD===pid?"background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border-color:var(--purple)":"background:#fff;color:var(--gray)";
     tabs+='<button onclick="setCLSPeriod(\''+pid+'\')" style="flex:1;padding:8px 4px;border:2px solid #E5E7EB;border-radius:8px;font-family:Nunito,sans-serif;font-weight:700;font-size:10px;cursor:pointer;'+active+'">'+plbl+'</button>';
   }
+  tabs+='<button onclick="renderCls()" style="padding:8px 10px;border:2px solid #E5E7EB;border-radius:8px;font-family:Nunito,sans-serif;font-weight:700;font-size:12px;cursor:pointer;background:#fff;color:var(--purple)">🔄</button>';
   tabs+='</div>';
 
   var r=await fetchCls(CLS_PERIOD);
@@ -901,8 +918,29 @@ function setCLSPeriod(p){CLS_PERIOD=p;renderCls();}
 
 function renderVerset(){
   var v=getDV();var vc=document.getElementById("vcont");if(!vc)return;
-  var h='<div class="vh"><div class="vd">📅 '+new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long"})+'</div><div class="vte">"'+v.text+'"</div><div class="vre">— '+v.ref+'</div><div class="vlst">'+t("ls")+'</div></div>';
-  h+='<div style="background:#fff;border-radius:13px;padding:13px;box-shadow:0 2px 8px rgba(26,47,90,.06);border-left:4px solid var(--navy)"><h3 style="font-size:11px;font-weight:800;color:var(--navy);margin-bottom:5px">'+t("defi_title")+'</h3><p style="font-size:11px;color:var(--brown);line-height:1.5">'+v.defi+'</p></div>';
+  var dateStr=new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  var shareVerse=function(){
+    var txt=(S.lang==="fr"?"✝️ Verset du Jour — Quiz Biblique C.E.V\n\n":"✝️ Verse of the Day — Bible Quiz C.E.V\n\n");
+    txt+='"'+v.text+'"\n— '+v.ref+' (Louis Segond 1910)\n\n';
+    txt+=(S.lang==="fr"?"Défi : "+v.defi+"\n\n":"Challenge: "+v.defi+"\n\n");
+    txt+="👉 https://kingdom-journey.vercel.app";
+    if(navigator.share)navigator.share({title:"Quiz Biblique C.E.V",text:txt,url:"https://kingdom-journey.vercel.app"});
+    else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+  };
+  window._shareVerse=shareVerse;
+  var h='<div class="vh">';
+  h+='<div class="vd">📅 '+dateStr+'</div>';
+  h+='<div class="vte">"'+v.text+'"</div>';
+  h+='<div class="vre">— '+v.ref+'</div>';
+  h+='<div class="vlst">'+t("ls")+'</div>';
+  h+='</div>';
+  h+='<div style="background:#fff;border-radius:16px;padding:14px;box-shadow:var(--sh);border-left:4px solid var(--purple);margin-bottom:11px">';
+  h+='<h3 style="font-size:11px;font-weight:800;color:var(--purple);margin-bottom:5px">'+t("defi_title")+'</h3>';
+  h+='<p style="font-size:11px;color:var(--dark);line-height:1.6">'+v.defi+'</p></div>';
+  h+='<div style="display:flex;gap:8px">';
+  h+='<button class="bwh" style="flex:1" onclick="window._shareVerse()">📲 '+(S.lang==="fr"?"Partager ce verset":"Share this verse")+'</button>';
+  h+='<button class="bng" style="flex:1" onclick="goTo(\'quiz\')">📖 '+(S.lang==="fr"?"Jouer au Quiz":"Play Quiz")+'</button>';
+  h+='</div>';
   vc.innerHTML=h;
 }
 
