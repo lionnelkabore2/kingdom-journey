@@ -742,8 +742,11 @@ function readQuestion(){
   if(!AUDIO.on)return;
   var q=S.tq.mixed[S.qi];if(!q)return;
   var qtext=S.lang==="en"&&q.qe?q.qe:q.q;
-  var parts=[{text:qtext,rate:0.85,pitch:1.1,pause:500}];
-  var letters=S.lang==="fr"?["A","B","C","D"]:["A","B","C","D"];
+  // Formater la référence pour l'intro
+  var refSpoken=formatRefForSpeech(q.ref);
+  var intro=S.lang==="fr"?"Question "+( S.qi+1)+". "+refSpoken+". ":"Question "+(S.qi+1)+". "+refSpoken+". ";
+  var parts=[{text:intro+qtext,rate:0.85,pitch:1.1,pause:500}];
+  var letters=["A","B","C","D"];
   for(var i=0;i<q.opts.length;i++){
     var ot=q.opts[i];
     if(ot.indexOf(" / ")>=0){ot=S.lang==="en"?ot.split(" / ")[1]:ot.split(" / ")[0];}
@@ -751,6 +754,26 @@ function readQuestion(){
   }
   window.speechSynthesis.cancel();
   speakSeq(parts,0);
+}
+
+function formatRefForSpeech(text){
+  var t=text;
+  if(S.lang==="fr"){
+    t=t.replace(/\b1\s+(Rois|Samuel|Corinthiens|Chroniques|Timothée|Pierre|Jean|Thessaloniciens)/g,"un $1");
+    t=t.replace(/\b2\s+(Rois|Samuel|Corinthiens|Chroniques|Timothée|Pierre|Jean|Thessaloniciens)/g,"deux $1");
+    t=t.replace(/\b3\s+(Jean)/g,"trois $1");
+    t=t.replace(/(\d+):(\d+)/g,"$1 verset $2");
+    t=t.replace(/\s*—\s*/g,". ");
+    t=t.replace(/\s+/g," ").trim();
+  } else {
+    t=t.replace(/\b1\s+(Kings|Samuel|Corinthians|Chronicles|Timothy|Peter|John|Thessalonians)/g,"First $1");
+    t=t.replace(/\b2\s+(Kings|Samuel|Corinthians|Chronicles|Timothy|Peter|John|Thessalonians)/g,"Second $1");
+    t=t.replace(/\b3\s+(John)/g,"Third $1");
+    t=t.replace(/(\d+):(\d+)/g,"$1 verse $2");
+    t=t.replace(/\s*—\s*/g,". ");
+    t=t.replace(/\s+/g," ").trim();
+  }
+  return t;
 }
 
 function readFeedback(ok,correctTxt,verse){
@@ -764,8 +787,9 @@ function readFeedback(ok,correctTxt,verse){
     parts.push({text:S.lang==="fr"?"Incorrect.":"Wrong.",rate:0.85,pitch:0.9,pause:300});
     parts.push({text:(S.lang==="fr"?"La bonne réponse est : ":"The correct answer is: ")+correctTxt,rate:0.88,pitch:1,pause:600});
   }
-  // Verset nettoyé — retire les références bibliographiques après le tiret
+  // Verset nettoyé et formaté pour la lecture
   var verseText=verse.split("—")[0].trim().replace(/"/g,"").trim();
+  verseText=formatRefForSpeech(verseText);
   if(verseText.length>10){
     parts.push({text:S.lang==="fr"?"La Bible dit : ":"The Bible says: ",rate:0.85,pitch:1,pause:100});
     parts.push({text:verseText,rate:0.82,pitch:1.05,pause:0});
