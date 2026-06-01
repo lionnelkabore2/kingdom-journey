@@ -717,37 +717,71 @@ function updateAudioBtn(){
   btn.innerHTML=AUDIO.on?"🔊":"🔇";
 }
 
+function speakSeq(parts,idx){
+  if(!AUDIO.on||!window.speechSynthesis)return;
+  if(idx>=parts.length)return;
+  var u=new SpeechSynthesisUtterance(parts[idx].text);
+  u.lang=S.lang==="en"?"en-US":"fr-FR";
+  u.rate=parts[idx].rate||0.88;
+  u.pitch=parts[idx].pitch||1;
+  u.volume=1;
+  var voices=window.speechSynthesis.getVoices();
+  var langCode=S.lang==="en"?"en":"fr";
+  var v=voices.find(function(v){return v.lang.startsWith(langCode)&&v.localService;})
+       ||voices.find(function(v){return v.lang.startsWith(langCode);});
+  if(v)u.voice=v;
+  u.onend=function(){
+    var pause=parts[idx].pause||0;
+    if(pause>0){setTimeout(function(){speakSeq(parts,idx+1);},pause);}
+    else{speakSeq(parts,idx+1);}
+  };
+  window.speechSynthesis.speak(u);
+}
+
 function readQuestion(){
   if(!AUDIO.on)return;
   var q=S.tq.mixed[S.qi];if(!q)return;
   var qtext=S.lang==="en"&&q.qe?q.qe:q.q;
-  var opts=[];
+  var parts=[{text:qtext,rate:0.85,pitch:1.1,pause:500}];
+  var letters=S.lang==="fr"?["A","B","C","D"]:["A","B","C","D"];
   for(var i=0;i<q.opts.length;i++){
-    var ot=q.opts[i];if(ot.indexOf(" / ")>=0){ot=S.lang==="en"?ot.split(" / ")[1]:ot.split(" / ")[0];}
-    opts.push(("ABCD"[i])+". "+ot);
+    var ot=q.opts[i];
+    if(ot.indexOf(" / ")>=0){ot=S.lang==="en"?ot.split(" / ")[1]:ot.split(" / ")[0];}
+    parts.push({text:letters[i]+". "+ot,rate:0.9,pitch:0.95,pause:200});
   }
-  var fullText=qtext+". "+opts.join(". ");
-  speak(fullText);
+  window.speechSynthesis.cancel();
+  speakSeq(parts,0);
 }
 
 function readFeedback(ok,correctTxt,verse){
   if(!AUDIO.on)return;
-  var msg="";
+  window.speechSynthesis.cancel();
+  var parts=[];
   if(ok){
-    msg=S.lang==="fr"?"Correct ! Bien joué ! ":"Correct! Well done! ";
+    parts.push({text:S.lang==="fr"?"Correct !":"Correct!",rate:0.9,pitch:1.3,pause:300});
+    parts.push({text:S.lang==="fr"?"Bien joué !":"Well done!",rate:0.9,pitch:1.1,pause:600});
   } else {
-    msg=(S.lang==="fr"?"Incorrect. La bonne réponse est : ":"Wrong. The correct answer is: ")+correctTxt+". ";
+    parts.push({text:S.lang==="fr"?"Incorrect.":"Wrong.",rate:0.85,pitch:0.9,pause:300});
+    parts.push({text:(S.lang==="fr"?"La bonne réponse est : ":"The correct answer is: ")+correctTxt,rate:0.88,pitch:1,pause:600});
   }
-  // Lit le verset sans les balises
-  var verseClean=verse.replace(/—/g,"").replace(/\s+/g," ").trim();
-  msg+=verseClean;
-  speak(msg);
+  // Verset nettoyé — retire les références bibliographiques après le tiret
+  var verseText=verse.split("—")[0].trim().replace(/"/g,"").trim();
+  if(verseText.length>10){
+    parts.push({text:S.lang==="fr"?"La Bible dit : ":"The Bible says: ",rate:0.85,pitch:1,pause:100});
+    parts.push({text:verseText,rate:0.82,pitch:1.05,pause:0});
+  }
+  speakSeq(parts,0);
 }
 
 function readResult(pct,msg){
   if(!AUDIO.on)return;
-  var txt=(S.lang==="fr"?"Quiz terminé ! Score : ":"Quiz finished! Score: ")+pct+"%. "+msg;
-  speak(txt);
+  window.speechSynthesis.cancel();
+  var parts=[
+    {text:S.lang==="fr"?"Quiz terminé !":"Quiz finished!",rate:0.9,pitch:1.2,pause:400},
+    {text:(S.lang==="fr"?"Ton score est de ":"Your score is ")+pct+" %",rate:0.88,pitch:1,pause:400},
+    {text:msg,rate:0.85,pitch:1,pause:0}
+  ];
+  speakSeq(parts,0);
 }
 
 function getUsedKey(){return"cev_used_"+todayStr()+"_"+(S.user?S.user.id:"");}
@@ -1051,82 +1085,86 @@ function shareVerseAsImage(){
   var v=getDV();
   var canvas=document.getElementById("verse-canvas");
   if(!canvas)return;
-  var W=800,H=800;
+  var W=1080,H=1080;
   canvas.width=W;canvas.height=H;
   var ctx=canvas.getContext("2d");
 
   // Fond dégradé violet → bleu → vert
   var grd=ctx.createLinearGradient(0,0,W,H);
-  grd.addColorStop(0,"#7C3AED");
-  grd.addColorStop(0.5,"#2563EB");
-  grd.addColorStop(1,"#059669");
+  grd.addColorStop(0,"#5B21B6");
+  grd.addColorStop(0.5,"#1D4ED8");
+  grd.addColorStop(1,"#047857");
   ctx.fillStyle=grd;
   ctx.fillRect(0,0,W,H);
 
-  // Cercles décoratifs semi-transparents
-  ctx.beginPath();ctx.arc(-60,H+60,300,0,Math.PI*2);
-  ctx.fillStyle="rgba(255,255,255,0.05)";ctx.fill();
-  ctx.beginPath();ctx.arc(W+60,-60,250,0,Math.PI*2);
+  // Cercles décoratifs
+  ctx.beginPath();ctx.arc(-80,H+80,400,0,Math.PI*2);
   ctx.fillStyle="rgba(255,255,255,0.06)";ctx.fill();
-  ctx.beginPath();ctx.arc(W/2,H/2,350,0,Math.PI*2);
-  ctx.fillStyle="rgba(255,255,255,0.03)";ctx.fill();
+  ctx.beginPath();ctx.arc(W+80,-80,320,0,Math.PI*2);
+  ctx.fillStyle="rgba(255,255,255,0.07)";ctx.fill();
+  ctx.beginPath();ctx.arc(W*0.8,H*0.3,180,0,Math.PI*2);
+  ctx.fillStyle="rgba(255,255,255,0.04)";ctx.fill();
 
-  // Carte blanche centrale
-  var pad=50,cardX=pad,cardY=120,cardW=W-pad*2,cardH=H-240;
-  ctx.fillStyle="rgba(255,255,255,0.12)";
-  roundRect(ctx,cardX,cardY,cardW,cardH,24);ctx.fill();
-  ctx.strokeStyle="rgba(255,255,255,0.25)";ctx.lineWidth=1.5;
-  roundRect(ctx,cardX,cardY,cardW,cardH,24);ctx.stroke();
+  // Carte centrale
+  var pad=60,cardX=pad,cardY=160,cardW=W-pad*2,cardH=H-280;
+  ctx.fillStyle="rgba(255,255,255,0.13)";
+  roundRect(ctx,cardX,cardY,cardW,cardH,32);ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,0.3)";ctx.lineWidth=2;
+  roundRect(ctx,cardX,cardY,cardW,cardH,32);ctx.stroke();
 
-  // Titre app
+  // Logo & titre
   ctx.textAlign="center";
-  ctx.fillStyle="rgba(255,255,255,0.9)";
-  ctx.font="bold 22px Arial";
-  ctx.fillText("✝️ Quiz Biblique C.E.V",W/2,60);
-  ctx.font="13px Arial";
-  ctx.fillStyle="rgba(255,255,255,0.6)";
-  ctx.fillText("Christ Est Vivant · Bible Louis Segond 1910",W/2,88);
+  ctx.fillStyle="#FFFFFF";
+  ctx.font="bold 34px Arial";
+  ctx.fillText("✝️  Quiz Biblique C.E.V",W/2,75);
+  ctx.font="18px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.65)";
+  ctx.fillText("Christ Est Vivant  ·  Bible Louis Segond 1910",W/2,115);
 
-  // Guillemets décoratifs
-  ctx.font="bold 80px Arial";
-  ctx.fillStyle="rgba(255,255,255,0.15)";
+  // Guillemet décoratif
+  ctx.font="bold 130px Georgia";
+  ctx.fillStyle="rgba(255,255,255,0.12)";
   ctx.textAlign="left";
-  ctx.fillText('"',70,220);
+  ctx.fillText('"',80,330);
 
-  // Texte du verset
-  ctx.font="italic bold 22px Arial";
+  // Texte du verset — GRAND
+  ctx.font="italic bold 34px Georgia";
   ctx.fillStyle="#FFFFFF";
   ctx.textAlign="center";
-  var textY=210;
-  var lines=wrapText(ctx,v.text,W/2,textY,cardW-80,34);
-  var afterTextY=textY+lines*34+20;
+  var textY=250;
+  var lineH=50;
+  var nLines=wrapText(ctx,v.text,W/2,textY,cardW-100,lineH);
+  var afterTextY=textY+nLines*lineH+28;
 
-  // Référence
-  ctx.font="bold 18px Arial";
+  // Référence — grande et dorée
+  ctx.font="bold 28px Arial";
   ctx.fillStyle="#FEF3C7";
-  ctx.fillText("— "+v.ref,W/2,afterTextY+10);
+  ctx.fillText("— "+v.ref+" —",W/2,afterTextY);
 
-  // Séparateur
-  ctx.strokeStyle="rgba(255,255,255,0.3)";
-  ctx.lineWidth=1;
-  ctx.beginPath();
-  ctx.moveTo(pad+80,afterTextY+35);
-  ctx.lineTo(W-pad-80,afterTextY+35);
-  ctx.stroke();
+  // Ligne de séparation décorative
+  var sepY=afterTextY+36;
+  var grad2=ctx.createLinearGradient(pad+60,0,W-pad-60,0);
+  grad2.addColorStop(0,"rgba(255,255,255,0)");
+  grad2.addColorStop(0.5,"rgba(255,255,255,0.5)");
+  grad2.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.strokeStyle=grad2;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(pad+60,sepY);ctx.lineTo(W-pad-60,sepY);ctx.stroke();
 
-  // Défi
-  ctx.font="bold 14px Arial";
-  ctx.fillStyle="rgba(255,255,255,0.8)";
-  var defiLabel=S.lang==="fr"?"📅 Défi du jour :":"📅 Daily Challenge:";
-  ctx.fillText(defiLabel,W/2,afterTextY+65);
-  ctx.font="13px Arial";
-  ctx.fillStyle="rgba(255,255,255,0.9)";
-  wrapText(ctx,v.defi,W/2,afterTextY+90,cardW-100,22);
+  // Défi — étiquette
+  ctx.font="bold 22px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.75)";
+  var defiLabel=S.lang==="fr"?"📅  Défi du jour":"📅  Daily Challenge";
+  ctx.fillText(defiLabel,W/2,sepY+46);
+
+  // Texte du défi — GRAND
+  ctx.font="20px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.92)";
+  wrapText(ctx,v.defi,W/2,sepY+82,cardW-120,32);
 
   // Lien en bas
-  ctx.font="bold 14px Arial";
-  ctx.fillStyle="rgba(255,255,255,0.7)";
-  ctx.fillText("👉 kingdom-journey.vercel.app",W/2,H-40);
+  ctx.font="bold 20px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.6)";
+  ctx.fillText("👉  kingdom-journey.vercel.app",W/2,H-42);
 
   // Afficher la prévisualisation
   var dataURL=canvas.toDataURL("image/png");
