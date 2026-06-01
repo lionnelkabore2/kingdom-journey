@@ -293,7 +293,10 @@ html,body{min-height:100%;font-family:Nunito,sans-serif;background:var(--cream);
   </div>
 
   <div class="scr" id="quiz-screen">
-    <div class="stit" id="quiz-screen-title">📖 Quiz</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+      <div class="stit" id="quiz-screen-title" style="margin-bottom:0">📖 Quiz</div>
+      <button id="audio-toggle" onclick="toggleAudio()" style="width:38px;height:38px;border-radius:50%;border:2px solid #E5E7EB;background:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:var(--sh)">🔇</button>
+    </div>
     <div class="lsb">📖 Bible Louis Segond 1910 · Questions mélangées · <span id="qleft">20</span> <span id="ql-rest">restantes aujourd'hui</span></div>
     <div id="qa"></div>
   </div>
@@ -662,6 +665,91 @@ function getMixedQuestions(){
   return shuffle(easy.concat(med).concat(hard));
 }
 
+// ── AUDIO MODE ────────────────────────────────────────────
+var AUDIO={on:false,speaking:false};
+
+function getAudioKey(){return"cev_audio_"+(S.user?S.user.id:"");}
+function loadAudioPref(){try{AUDIO.on=localStorage.getItem(getAudioKey())==="1";}catch(e){}}
+function saveAudioPref(){try{localStorage.setItem(getAudioKey(),AUDIO.on?"1":"0");}catch(e){}}
+
+function speak(text,onEnd){
+  if(!AUDIO.on||!window.speechSynthesis)return;
+  window.speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(text);
+  u.lang=S.lang==="en"?"en-US":"fr-FR";
+  u.rate=0.9;u.pitch=1.05;u.volume=1;
+  // Chercher une voix dans la bonne langue
+  var voices=window.speechSynthesis.getVoices();
+  var langCode=S.lang==="en"?"en":"fr";
+  var v=voices.find(function(v){return v.lang.startsWith(langCode)&&v.localService;})
+       ||voices.find(function(v){return v.lang.startsWith(langCode);});
+  if(v)u.voice=v;
+  if(onEnd)u.onend=onEnd;
+  AUDIO.speaking=true;
+  u.onend=function(){AUDIO.speaking=false;if(onEnd)onEnd();};
+  window.speechSynthesis.speak(u);
+}
+
+function stopSpeak(){
+  if(window.speechSynthesis)window.speechSynthesis.cancel();
+  AUDIO.speaking=false;
+}
+
+function toggleAudio(){
+  AUDIO.on=!AUDIO.on;
+  saveAudioPref();
+  updateAudioBtn();
+  if(AUDIO.on){
+    var msg=S.lang==="fr"?"Mode audio activé. Les questions seront lues à voix haute.":"Audio mode on. Questions will be read aloud.";
+    speak(msg);
+  } else {
+    stopSpeak();
+  }
+}
+
+function updateAudioBtn(){
+  var btn=document.getElementById("audio-toggle");
+  if(!btn)return;
+  btn.style.background=AUDIO.on?"linear-gradient(135deg,var(--green),#059669)":"#fff";
+  btn.style.color=AUDIO.on?"#fff":"var(--gray)";
+  btn.style.borderColor=AUDIO.on?"var(--green)":"#E5E7EB";
+  btn.title=AUDIO.on?(S.lang==="fr"?"Désactiver l'audio":"Disable audio"):(S.lang==="fr"?"Activer l'audio":"Enable audio");
+  btn.innerHTML=AUDIO.on?"🔊":"🔇";
+}
+
+function readQuestion(){
+  if(!AUDIO.on)return;
+  var q=S.tq.mixed[S.qi];if(!q)return;
+  var qtext=S.lang==="en"&&q.qe?q.qe:q.q;
+  var opts=[];
+  for(var i=0;i<q.opts.length;i++){
+    var ot=q.opts[i];if(ot.indexOf(" / ")>=0){ot=S.lang==="en"?ot.split(" / ")[1]:ot.split(" / ")[0];}
+    opts.push(("ABCD"[i])+". "+ot);
+  }
+  var fullText=qtext+". "+opts.join(". ");
+  speak(fullText);
+}
+
+function readFeedback(ok,correctTxt,verse){
+  if(!AUDIO.on)return;
+  var msg="";
+  if(ok){
+    msg=S.lang==="fr"?"Correct ! Bien joué ! ":"Correct! Well done! ";
+  } else {
+    msg=(S.lang==="fr"?"Incorrect. La bonne réponse est : ":"Wrong. The correct answer is: ")+correctTxt+". ";
+  }
+  // Lit le verset sans les balises
+  var verseClean=verse.replace(/—/g,"").replace(/\s+/g," ").trim();
+  msg+=verseClean;
+  speak(msg);
+}
+
+function readResult(pct,msg){
+  if(!AUDIO.on)return;
+  var txt=(S.lang==="fr"?"Quiz terminé ! Score : ":"Quiz finished! Score: ")+pct+"%. "+msg;
+  speak(txt);
+}
+
 function getUsedKey(){return"cev_used_"+todayStr()+"_"+(S.user?S.user.id:"");}
 function getUsed(){try{return parseInt(localStorage.getItem(getUsedKey())||"0");}catch(e){return 0;}}
 function incUsed(){try{localStorage.setItem(getUsedKey(),getUsed()+1);}catch(e){}}
@@ -705,6 +793,8 @@ function renderQuiz(){
   h+='</div><div class="fb" id="fb"></div>';
   h+='<button class="nb" id="nb" onclick="nextQ()">'+t("next_q")+'</button></div>';
   area.innerHTML=h;
+  // Lire la question automatiquement si mode audio activé
+  setTimeout(function(){readQuestion();},300);
 }
 
 function getLvlPts(diff,ok){
@@ -730,6 +820,8 @@ function ansQ(c){
   if(fb){fb.className="fb show "+(ok?"ok":"ng");fb.innerHTML="<strong>"+(ok?t("correct"):t("wrong"))+"</strong>"+ptsMsg+" "+(ok?t("well_done"):t("good_ans")+" <strong>"+correctTxt+"</strong>")+'<div class="fv">📖 '+q.verse+'</div>';}
   var nb=document.getElementById("nb");if(nb)nb.classList.add("show");
   if(ok)launchMiniConfetti();
+  // Lire le feedback si mode audio activé
+  readFeedback(ok,correctTxt,q.verse);
   // Sauvegarde le score en temps réel après chaque réponse
   saveScore();
 }
@@ -771,6 +863,7 @@ function renderQResult(){
     +lv.emoji+' '+t("rang")+' : '+(S.lang==="en"?lv.namee:lv.name)+' · '+xp+' XP</div>'
     +'<div class="rm">'+msg+'</div><div class="rbs"><button class="bwh" onclick="share()">📲 WhatsApp</button>'
     +'<button class="bng" onclick="goTo(\'classement\')">🏆 '+t("cls_btn")+'</button></div></div>';
+  setTimeout(function(){readResult(pct,msg);},400);
 }
 
 function share(){
@@ -1088,6 +1181,7 @@ function goTo(s){
 
 function initApp(){
   applyLangUI();
+  loadAudioPref();
   S.tq.mixed=getMixedQuestions();
   var v=getDV();
   document.getElementById("hvt").textContent='"'+v.text+'"';
@@ -1099,8 +1193,14 @@ function initApp(){
     document.getElementById("ss").textContent=S.score;
   }
   updateXPBar();
+  // Précharger les voix
+  if(window.speechSynthesis){
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener("voiceschanged",function(){});
+  }
   renderQuiz();renderVerset();
   goTo("home");
+  setTimeout(updateAudioBtn,200);
 }
 
 window.onload=function(){
