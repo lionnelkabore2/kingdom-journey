@@ -212,6 +212,27 @@ html,body{min-height:100%;font-family:Nunito,sans-serif;background:var(--cream);
 /* CONFETTI */
 .conf{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:9998;animation:fall linear forwards}
 @keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+/* MODE DEFI */
+.defi-card{background:#fff;border-radius:20px;padding:18px;box-shadow:var(--sh);margin-bottom:13px}
+.defi-code{font-family:"Playfair Display",serif;font-size:52px;font-weight:900;text-align:center;background:linear-gradient(135deg,var(--purple),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:8px;margin:10px 0}
+.defi-player{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F9FAFB;border-radius:12px;margin-bottom:7px;border:2px solid #E5E7EB;transition:all .3s}
+.defi-player.ready{border-color:var(--green);background:var(--greenl)}
+.defi-player.host{border-color:var(--gold);background:var(--goldl)}
+.defi-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;flex-shrink:0}
+.defi-pname{font-weight:700;font-size:12px;color:var(--dark);flex:1}
+.defi-pscore{font-weight:800;font-size:13px;color:var(--purple)}
+.defi-btn{width:100%;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:none;border-radius:12px;padding:13px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;box-shadow:0 4px 12px rgba(124,58,237,.3)}
+.defi-btn-out{width:100%;background:#F3F4F6;color:var(--gray);border:none;border-radius:12px;padding:11px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-top:6px}
+.defi-q{background:#fff;border-radius:20px;padding:16px;box-shadow:var(--sh);border-top:4px solid var(--orange)}
+.defi-timer{font-family:"Playfair Display",serif;font-size:42px;font-weight:900;text-align:center;color:var(--purple);margin:6px 0;transition:color .3s}
+.defi-timer.urgent{color:var(--red);animation:urgentPulse .5s infinite alternate}
+@keyframes urgentPulse{from{transform:scale(1)}to{transform:scale(1.1)}}
+.defi-winner{text-align:center;padding:20px;background:linear-gradient(135deg,var(--gold),var(--orange));border-radius:16px;margin-bottom:10px;color:#fff}
+.defi-input{width:100%;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-family:Nunito,sans-serif;font-size:22px;text-align:center;letter-spacing:8px;font-weight:800;color:var(--purple);margin:10px 0;outline:none}
+.defi-input:focus{border-color:var(--purple)}
+.size-btn{flex:1;padding:11px;border:2px solid #E5E7EB;border-radius:10px;background:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;color:var(--gray)}
+.size-btn.sel{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border-color:var(--purple)}
+.first-badge{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,var(--gold),var(--orange));color:#fff;border-radius:20px;padding:3px 10px;font-size:9px;font-weight:800;margin-left:6px}
 </style>
 </head>
 <body>
@@ -1595,35 +1616,18 @@ function initApp(){
 
 // ── MODE DÉFI ─────────────────────────────────────────────
 var DEFI={room:null,players:[],answers:[],qi:0,answered:false,sub:null,sub2:null,sub3:null,qs:[],timer:null,countdown:null};
+var DEFI_SIZE=4;
+var DEFI_MAX_PER_DAY=10;
+var DEFI_WIN_SCORE=20;
+var DEFI_TIME=15;
 
-// CSS défi injecté dynamiquement
-(function(){var s=document.createElement('style');s.textContent=`
-.defi-card{background:#fff;border-radius:20px;padding:18px;box-shadow:var(--sh);margin-bottom:13px}
-.defi-code{font-family:"Playfair Display",serif;font-size:52px;font-weight:900;text-align:center;background:linear-gradient(135deg,var(--purple),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:8px;margin:10px 0}
-.defi-player{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#F9FAFB;border-radius:12px;margin-bottom:7px;border:2px solid #E5E7EB;transition:all .3s}
-.defi-player.ready{border-color:var(--green);background:var(--greenl)}
-.defi-player.host{border-color:var(--gold);background:var(--goldl)}
-.defi-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;flex-shrink:0}
-.defi-pname{font-weight:700;font-size:12px;color:var(--dark);flex:1}
-.defi-pscore{font-weight:800;font-size:13px;color:var(--purple)}
-.defi-btn{width:100%;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:none;border-radius:12px;padding:13px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;box-shadow:0 4px 12px rgba(124,58,237,.3)}
-.defi-btn-out{width:100%;background:#F3F4F6;color:var(--gray);border:none;border-radius:12px;padding:11px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-top:6px}
-.defi-q{background:#fff;border-radius:20px;padding:16px;box-shadow:var(--sh);border-top:4px solid var(--orange)}
-.defi-timer{font-family:"Playfair Display",serif;font-size:42px;font-weight:900;text-align:center;color:var(--purple);margin:6px 0;transition:color .3s}
-.defi-timer.urgent{color:var(--red);animation:urgentPulse .5s infinite alternate}
-@keyframes urgentPulse{from{transform:scale(1)}to{transform:scale(1.1)}}
-.defi-winner{text-align:center;padding:20px;background:linear-gradient(135deg,var(--gold),var(--orange));border-radius:16px;margin-bottom:10px;color:#fff}
-.defi-input{width:100%;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-family:Nunito,sans-serif;font-size:22px;text-align:center;letter-spacing:8px;font-weight:800;color:var(--purple);margin:10px 0;outline:none}
-.defi-input:focus{border-color:var(--purple)}
-.size-btn{flex:1;padding:11px;border:2px solid #E5E7EB;border-radius:10px;background:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;color:var(--gray)}
-.size-btn.sel{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border-color:var(--purple)}
-.first-badge{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,var(--gold),var(--orange));color:#fff;border-radius:20px;padding:3px 10px;font-size:9px;font-weight:800;margin-left:6px}
-`;document.head.appendChild(s);})();
+// CSS défi déjà dans le <style> principal
 
 function genCode(){return String(Math.floor(1000+Math.random()*9000));}
 
-async function renderDefi(){
-  var c=document.getElementById("defi-cont");if(!c)return;
+function renderDefi(){
+  var c=document.getElementById("defi-cont");
+  if(!c){console.log("defi-cont not found");return;}
   if(!DEFI.room){renderDefiHome();return;}
   if(DEFI.room.status==="waiting"){renderDefiWaiting();return;}
   if(DEFI.room.status==="playing"){renderDefiPlaying();return;}
@@ -1633,55 +1637,69 @@ async function renderDefi(){
 function getDefiUsedKey(){return"cev_defi_"+todayStr()+"_"+(S.user?S.user.id:"");}
 function getDefiUsed(){try{return parseInt(localStorage.getItem(getDefiUsedKey())||"0");}catch(e){return 0;}}
 function incDefiUsed(){try{localStorage.setItem(getDefiUsedKey(),getDefiUsed()+1);}catch(e){}}
-var DEFI_MAX_PER_DAY=10;
+
 
 function renderDefiHome(){
   var c=document.getElementById("defi-cont");
-  var lbl=S.lang==="fr";
+  if(!c)return;
+  var lbl=(S.lang==="fr");
   var used=getDefiUsed();
   var left=Math.max(0,DEFI_MAX_PER_DAY-used);
+  var h="";
 
-  var h='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff">';
-  h+='<div style="font-size:40px;margin-bottom:8px">⚔️</div>';
-  h+='<h2 style="font-family:\'Playfair Display\',serif;font-size:20px;color:#fff;margin-bottom:5px">'+(lbl?"Mode Défi":"Challenge Mode")+'</h2>';
-  h+='<p style="font-size:11px;color:rgba(255,255,255,.8)">'+(lbl?"Affrontez-vous en temps réel !":"Battle in real time!")+'</p>';
+  // Bannière principale
+  h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
+  h+='<div style="font-size:40px;margin-bottom:8px">&#9876;</div>';
+  h+='<h2 style="font-family:Playfair Display,serif;font-size:20px;color:#fff;margin-bottom:5px">';
+  h+=lbl?"Mode Defi":"Challenge Mode";
+  h+='</h2>';
+  h+='<p style="font-size:11px;color:rgba(255,255,255,.8)">';
+  h+=lbl?"Affrontez-vous en temps reel !":"Battle in real time!";
+  h+='</p>';
   h+='<div style="background:rgba(255,255,255,.2);border-radius:10px;padding:6px 14px;margin-top:8px;font-size:11px;font-weight:700">';
-  h+=lbl?("⚔️ "+left+"/"+DEFI_MAX_PER_DAY+" défis restants aujourd'hui"):("⚔️ "+left+"/"+DEFI_MAX_PER_DAY+" challenges left today");
+  h+="&#9876; "+left+"/"+DEFI_MAX_PER_DAY+" "+(lbl?"defis restants aujourd hui":"challenges left today");
   h+='</div></div>';
 
   if(left<=0){
     h+='<div class="defi-card" style="text-align:center;padding:24px">';
-    h+='<div style="font-size:36px;margin-bottom:10px">⏰</div>';
-    h+='<p style="font-weight:700;color:var(--purple)">'+(lbl?"Tu as atteint la limite de 10 défis aujourd'hui !":"You've reached the 10 challenge limit today!")+'</p>';
-    h+='<p style="font-size:11px;color:var(--gray);margin-top:6px">'+(lbl?"Reviens demain pour de nouveaux défis !":"Come back tomorrow for new challenges!")+'</p>';
+    h+='<div style="font-size:36px;margin-bottom:10px">&#9200;</div>';
+    h+='<p style="font-weight:700;color:#7C3AED">'+(lbl?"Limite de 10 defis atteinte aujourd hui !":"10 challenge limit reached today!")+'</p>';
+    h+='<p style="font-size:11px;color:#6B7280;margin-top:6px">'+(lbl?"Reviens demain !":"Come back tomorrow!")+'</p>';
     h+='</div>';
-    c.innerHTML=h;return;
+    c.innerHTML=h;
+    return;
   }
 
+  // Sélecteur de taille
   h+='<div class="defi-card">';
-  h+='<h3 style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:6px">👥 '+(lbl?"Nombre de joueurs (2-12)":"Number of players (2-12)")+'</h3>';
+  h+='<h3 style="font-size:13px;font-weight:800;color:#7C3AED;margin-bottom:6px">';
+  h+=lbl?"Nombre de joueurs (2-12)":"Number of players (2-12)";
+  h+='</h3>';
   h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
-  h+='<span style="font-size:11px;color:var(--gray)">2</span>';
-  h+='<input type="range" id="size-slider" min="2" max="12" value="'+DEFI_SIZE+'" oninput="updateSizeDisplay(this.value)" style="flex:1;accent-color:var(--purple)">';
-  h+='<span style="font-size:11px;color:var(--gray)">12</span>';
+  h+='<span style="font-size:11px;color:#6B7280">2</span>';
+  h+='<input type="range" id="size-slider" min="2" max="12" value="'+DEFI_SIZE+'" oninput="updateSizeDisplay(this.value)" style="flex:1">';
+  h+='<span style="font-size:11px;color:#6B7280">12</span>';
   h+='</div>';
   h+='<div style="text-align:center;margin-bottom:10px">';
-  h+='<span id="size-display" style="font-family:\'Playfair Display\',serif;font-size:28px;font-weight:900;color:var(--purple)">'+DEFI_SIZE+'</span>';
-  h+='<span style="font-size:11px;color:var(--gray);margin-left:5px">'+(lbl?"joueurs":"players")+'</span>';
-  h+='<div style="font-size:10px;color:var(--orange);font-weight:700;margin-top:3px">🏆 XP bonus = '+DEFI_SIZE+' × 4 = <span id="xp-preview">'+(DEFI_SIZE*4)+'</span> XP</div>';
-  h+='</div>';
-  h+='<button class="defi-btn" onclick="createRoom()">➕ '+(lbl?"Créer la salle":"Create room")+'</button>';
+  h+='<span id="size-display" style="font-size:28px;font-weight:900;color:#7C3AED">'+DEFI_SIZE+'</span>';
+  h+=' <span style="font-size:11px;color:#6B7280">'+(lbl?"joueurs":"players")+'</span>';
+  h+='<div style="font-size:10px;color:#F97316;font-weight:700;margin-top:3px">';
+  h+='XP bonus = '+DEFI_SIZE+' x 4 = <span id="xp-preview">'+(DEFI_SIZE*4)+'</span> XP';
+  h+='</div></div>';
+  h+='<button class="defi-btn" onclick="createRoom()">&#10133; '+(lbl?"Creer la salle":"Create room")+'</button>';
   h+='</div>';
 
+  // Rejoindre
   h+='<div class="defi-card">';
-  h+='<h3 style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:8px">🔑 '+(lbl?"Rejoindre une salle":"Join a room")+'</h3>';
-  h+='<input class="defi-input" id="room-code-inp" type="text" maxlength="4" placeholder="0000" oninput="this.value=this.value.replace(/[^0-9]/g,\'\')">';
-  h+='<button class="defi-btn" onclick="joinRoom()">🚀 '+(lbl?"Rejoindre":"Join")+'</button>';
+  h+='<h3 style="font-size:13px;font-weight:800;color:#7C3AED;margin-bottom:8px">&#128273; '+(lbl?"Rejoindre une salle":"Join a room")+'</h3>';
+  h+='<input id="room-code-inp" type="number" maxlength="4" placeholder="0000" style="width:100%;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-size:22px;text-align:center;letter-spacing:8px;font-weight:800;color:#7C3AED;margin:10px 0;outline:none">';
+  h+='<button class="defi-btn" onclick="joinRoom()">&#128640; '+(lbl?"Rejoindre":"Join")+'</button>';
   h+='</div>';
+
   c.innerHTML=h;
 }
 
-var DEFI_SIZE=4;
+
 function selSize(n,btn){
   DEFI_SIZE=n;
   document.querySelectorAll(".size-btn").forEach(function(b){b.classList.remove("sel");});
@@ -2009,7 +2027,7 @@ function renderDefiPlaying(){
   startQuestionTimer();
 }
 
-var DEFI_WIN_SCORE=20; // Premier à 20 pts gagne
+
 
 async function answerDefi(choice){
   if(DEFI.answered)return;
