@@ -1618,23 +1618,49 @@ async function renderDefi(){
   if(DEFI.room.status==="finished"){renderDefiResults();return;}
 }
 
+function getDefiUsedKey(){return"cev_defi_"+todayStr()+"_"+(S.user?S.user.id:"");}
+function getDefiUsed(){try{return parseInt(localStorage.getItem(getDefiUsedKey())||"0");}catch(e){return 0;}}
+function incDefiUsed(){try{localStorage.setItem(getDefiUsedKey(),getDefiUsed()+1);}catch(e){}}
+var DEFI_MAX_PER_DAY=10;
+
 function renderDefiHome(){
   var c=document.getElementById("defi-cont");
   var lbl=S.lang==="fr";
+  var used=getDefiUsed();
+  var left=Math.max(0,DEFI_MAX_PER_DAY-used);
+
   var h='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff">';
   h+='<div style="font-size:40px;margin-bottom:8px">⚔️</div>';
   h+='<h2 style="font-family:\'Playfair Display\',serif;font-size:20px;color:#fff;margin-bottom:5px">'+(lbl?"Mode Défi":"Challenge Mode")+'</h2>';
-  h+='<p style="font-size:11px;color:rgba(255,255,255,.8);margin-bottom:0">'+(lbl?"Affrontez-vous en temps réel !":"Battle in real time!")+'</p>';
-  h+='</div>';
+  h+='<p style="font-size:11px;color:rgba(255,255,255,.8)">'+(lbl?"Affrontez-vous en temps réel !":"Battle in real time!")+'</p>';
+  h+='<div style="background:rgba(255,255,255,.2);border-radius:10px;padding:6px 14px;margin-top:8px;font-size:11px;font-weight:700">';
+  h+=lbl?("⚔️ "+left+"/"+DEFI_MAX_PER_DAY+" défis restants aujourd'hui"):("⚔️ "+left+"/"+DEFI_MAX_PER_DAY+" challenges left today");
+  h+='</div></div>';
+
+  if(left<=0){
+    h+='<div class="defi-card" style="text-align:center;padding:24px">';
+    h+='<div style="font-size:36px;margin-bottom:10px">⏰</div>';
+    h+='<p style="font-weight:700;color:var(--purple)">'+(lbl?"Tu as atteint la limite de 10 défis aujourd'hui !":"You've reached the 10 challenge limit today!")+'</p>';
+    h+='<p style="font-size:11px;color:var(--gray);margin-top:6px">'+(lbl?"Reviens demain pour de nouveaux défis !":"Come back tomorrow for new challenges!")+'</p>';
+    h+='</div>';
+    c.innerHTML=h;return;
+  }
+
   h+='<div class="defi-card">';
-  h+='<h3 style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:10px">📏 '+(lbl?"Nombre de joueurs":"Number of players")+'</h3>';
-  h+='<div style="display:flex;gap:6px;margin-bottom:14px">';
-  h+='<button class="size-btn sel" id="sz4" onclick="selSize(4,this)">👥 4</button>';
-  h+='<button class="size-btn" id="sz8" onclick="selSize(8,this)">👥 8</button>';
-  h+='<button class="size-btn" id="sz12" onclick="selSize(12,this)">👥 12</button>';
+  h+='<h3 style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:6px">👥 '+(lbl?"Nombre de joueurs (2-12)":"Number of players (2-12)")+'</h3>';
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+  h+='<span style="font-size:11px;color:var(--gray)">2</span>';
+  h+='<input type="range" id="size-slider" min="2" max="12" value="'+DEFI_SIZE+'" oninput="updateSizeDisplay(this.value)" style="flex:1;accent-color:var(--purple)">';
+  h+='<span style="font-size:11px;color:var(--gray)">12</span>';
   h+='</div>';
-  h+='<button class="defi-btn" onclick="createRoom()">➕ '+(lbl?"Créer une salle":"Create a room")+'</button>';
+  h+='<div style="text-align:center;margin-bottom:10px">';
+  h+='<span id="size-display" style="font-family:\'Playfair Display\',serif;font-size:28px;font-weight:900;color:var(--purple)">'+DEFI_SIZE+'</span>';
+  h+='<span style="font-size:11px;color:var(--gray);margin-left:5px">'+(lbl?"joueurs":"players")+'</span>';
+  h+='<div style="font-size:10px;color:var(--orange);font-weight:700;margin-top:3px">🏆 XP bonus = '+DEFI_SIZE+' × 4 = <span id="xp-preview">'+(DEFI_SIZE*4)+'</span> XP</div>';
   h+='</div>';
+  h+='<button class="defi-btn" onclick="createRoom()">➕ '+(lbl?"Créer la salle":"Create room")+'</button>';
+  h+='</div>';
+
   h+='<div class="defi-card">';
   h+='<h3 style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:8px">🔑 '+(lbl?"Rejoindre une salle":"Join a room")+'</h3>';
   h+='<input class="defi-input" id="room-code-inp" type="text" maxlength="4" placeholder="0000" oninput="this.value=this.value.replace(/[^0-9]/g,\'\')">';
@@ -1647,11 +1673,22 @@ var DEFI_SIZE=4;
 function selSize(n,btn){
   DEFI_SIZE=n;
   document.querySelectorAll(".size-btn").forEach(function(b){b.classList.remove("sel");});
-  btn.classList.add("sel");
+  if(btn)btn.classList.add("sel");
+}
+function updateSizeDisplay(v){
+  DEFI_SIZE=parseInt(v);
+  var d=document.getElementById("size-display");
+  var x=document.getElementById("xp-preview");
+  if(d)d.textContent=DEFI_SIZE;
+  if(x)x.textContent=DEFI_SIZE*4;
 }
 
 async function createRoom(){
   if(!S.user)return;
+  if(getDefiUsed()>=DEFI_MAX_PER_DAY){
+    alert(S.lang==="fr"?"Limite de 10 défis atteinte aujourd'hui !":"10 challenge limit reached today!");
+    return;
+  }
   var code=genCode();
   var qs=getMixedQuestions().slice(0,10);
   var qData=qs.map(function(q){return{q:q.q,qe:q.qe,opts:q.opts,ans:q.ans,ref:q.ref,diff:q.diff||"easy"};});
@@ -1672,6 +1709,10 @@ async function createRoom(){
 async function joinRoom(){
   var code=document.getElementById("room-code-inp");
   if(!code||!code.value||code.value.length!==4){alert("Entrez un code à 4 chiffres");return;}
+  if(getDefiUsed()>=DEFI_MAX_PER_DAY){
+    alert(S.lang==="fr"?"Limite de 10 défis atteinte aujourd'hui !":"10 challenge limit reached today!");
+    return;
+  }
   var r=await fetch(SB_URL+"/rest/v1/cev_rooms?code=eq."+code.value+"&status=eq.waiting",{
     headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
   });
@@ -1944,15 +1985,10 @@ async function answerDefi(choice){
         headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
         body:JSON.stringify({status:"finished"})
       });
-      // Bonus 20 XP au gagnant
-      addXP(20);
       return;
     } else if(newScore>=DEFI_WIN_SCORE){
-      // On a gagné mais on n'est pas l'hôte — l'hôte recevra la màj via realtime
-      // On affiche le feedback victoire localement
-      var fb=document.getElementById("defi-timer");
-      if(fb){fb.className="defi-timer";fb.style.fontSize="11px";fb.textContent="🏆 "+(S.lang==="fr"?"VICTOIRE !":"VICTORY!");}
-      addXP(20);
+      var fb2=document.getElementById("defi-timer");
+      if(fb2){fb2.className="defi-timer";fb2.style.fontSize="11px";fb2.textContent="🏆 "+(S.lang==="fr"?"VICTOIRE !":"VICTORY!");}
       return;
     }
   }
@@ -2015,6 +2051,21 @@ function renderDefiResults(){
   var sorted=DEFI.players.slice().sort(function(a,b){return b.score-a.score;});
   var winner=sorted[0];
   var isWinner=winner&&winner.user_id===S.user.id;
+  var maxPlayers=DEFI.room?DEFI.room.max_players:4;
+  var xpBonus=maxPlayers*4;
+
+  // Incrémenter le compteur de défis du jour
+  incDefiUsed();
+
+  // Ajouter le XP bonus au gagnant et mettre à jour le classement
+  if(isWinner){
+    addXP(xpBonus);
+    // Ajouter aussi au score journalier du classement
+    S.score+=xpBonus;
+    addScore(0);
+    saveScore();
+  }
+
   var h='<div class="defi-winner">';
   h+='<div style="font-size:50px;margin-bottom:8px">'+(isWinner?"🏆":"⚔️")+'</div>';
   h+='<div style="font-family:\'Playfair Display\',serif;font-size:24px;font-weight:900">';
@@ -2027,12 +2078,13 @@ function renderDefiResults(){
   }
   if(isWinner){
     h+='<div style="background:rgba(255,255,255,.25);border-radius:12px;padding:8px 16px;margin-top:10px;font-size:13px;font-weight:800">';
-    h+='⭐ +20 XP '+(lbl?"bonus gagné !":"bonus earned!");
+    h+='⭐ +'+xpBonus+' XP '+(lbl?"bonus ("+maxPlayers+" joueurs × 4) !":"bonus ("+maxPlayers+" players × 4)!");
     h+='</div>';
   }
   h+='</div>';
   h+='<div style="background:var(--purplel);border:1px solid var(--purple);border-radius:12px;padding:10px;margin-bottom:13px;text-align:center;font-size:11px;color:var(--purple);font-weight:700">';
   h+=(lbl?"🎯 Premier à ":"🎯 First to ")+DEFI_WIN_SCORE+(lbl?" points = Victoire !":"  points = Victory!");
+  h+='<br><span style="color:var(--orange)">🏆 XP bonus = '+maxPlayers+' × 4 = '+xpBonus+' XP</span>';
   h+='</div>';
   h+='<div class="defi-card">';
   h+='<h3 style="font-size:12px;font-weight:800;color:var(--purple);margin-bottom:10px">🏅 '+(lbl?"Classement final":"Final rankings")+'</h3>';
@@ -2045,6 +2097,9 @@ function renderDefiResults(){
     h+='<div class="defi-pscore">'+p.score+' pts</div></div>';
   }
   h+='</div>';
+  // Défis restants aujourd'hui
+  var left=Math.max(0,DEFI_MAX_PER_DAY-getDefiUsed());
+  h+='<div style="text-align:center;padding:8px;font-size:11px;color:var(--gray);font-weight:700">⚔️ '+(lbl?left+" défis restants aujourd'hui":left+" challenges left today")+'</div>';
   h+='<button class="defi-btn" onclick="shareDefiResult()">📲 '+(lbl?"Partager les résultats":"Share results")+'</button>';
   h+='<button class="defi-btn-out" onclick="leaveRoom()">'+(lbl?"Retour à l'accueil":"Back to home")+'</button>';
   c.innerHTML=h;
