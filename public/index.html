@@ -1846,22 +1846,15 @@ function renderDefiWaiting(){
       h+='<div style="text-align:center;padding:12px;color:var(--gray);font-size:11px">⏳ '+(lbl?"En attente de joueurs...":"Waiting for players...")+'</div>';
     }
     h+='</div>';
-    // Bouton prêt
-    var myPlayer=DEFI.players.find(function(p){return p.user_id===S.user.id;});
-    var amReady=myPlayer&&myPlayer.ready;
-    if(!amReady){
-      h+='<button class="defi-btn" onclick="setReady()">✅ '+(lbl?"Je suis prêt !":"I'm ready!")+'</button>';
-    } else {
-      h+='<div style="text-align:center;padding:12px;background:var(--greenl);border-radius:12px;color:var(--greend);font-weight:800">✅ '+(lbl?"Tu es prêt !":"You're ready!")+'</div>';
-    }
-    // Bouton démarrer (hôte seulement, si tous prêts)
+    // Bouton démarrer (hôte seulement, dès qu'il y a 2+ joueurs)
     if(isHost){
-      var allReady=DEFI.players.length>=2&&DEFI.players.every(function(p){return p.ready;});
-    var alertMsg=lbl?"Attends que tous les joueurs soient prets":"Wait for all players to be ready";
-    var startAction=allReady?"startDefi()":"alert('"+alertMsg+"')";
-    var startLabel=allReady?"🚀 "+(lbl?"Demarrer !":"Start!"):"🕐 "+(lbl?"En attente...":"Waiting...");
-    var startStyle="margin-top:8px;"+(allReady?"":"opacity:.5;cursor:not-allowed");
-    h+='<button class="defi-btn" style="'+startStyle+'" onclick="'+startAction+'">'+startLabel+'</button>';
+      var canStart=DEFI.players.length>=2;
+      var startLabel="🚀 "+(lbl?"Démarrer le défi !":"Start the challenge!");
+      if(canStart){
+        h+='<button class="defi-btn" style="margin-top:8px" onclick="startDefi()">'+startLabel+'</button>';
+      } else {
+        h+='<button class="defi-btn" style="margin-top:8px;opacity:.5;cursor:not-allowed">⏳ '+(lbl?"Attends au moins 1 autre joueur...":"Wait for at least 1 more player...")+'</button>';
+      }
     }
     h+='<button class="defi-btn-out" onclick="leaveRoom()">🚪 '+(lbl?"Quitter la salle":"Leave room")+'</button>';
     c.innerHTML=h;
@@ -1916,20 +1909,33 @@ async function rejoinRoom(){
 }
 
 async function startDefi(){
-  if(!DEFI.room)return;
-  var r=await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-    method:"PATCH",
-    headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-    body:JSON.stringify({status:"playing",current_q:0,q_start_time:new Date().toISOString()})
-  });
-  if(r.ok){
-    // Mettre à jour l'état local immédiatement sans attendre le WebSocket
-    DEFI.room.status="playing";
-    DEFI.room.current_q=0;
-    DEFI.answered=false;
-    saveDefiSession();
-    renderDefi();
-    startQuestionTimer();
+  if(!DEFI.room){console.log("startDefi: no room");return;}
+  console.log("startDefi: patching room",DEFI.room.id);
+  // Feedback visuel immédiat
+  var btn=document.querySelector(".defi-btn");
+  if(btn){btn.textContent="⏳ Démarrage...";btn.disabled=true;}
+  try{
+    var r=await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
+      method:"PATCH",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
+      body:JSON.stringify({status:"playing",current_q:0,q_start_time:new Date().toISOString()})
+    });
+    console.log("startDefi response:",r.status);
+    if(r.ok){
+      DEFI.room.status="playing";
+      DEFI.room.current_q=0;
+      DEFI.answered=false;
+      saveDefiSession();
+      renderDefi();
+      startQuestionTimer();
+    } else {
+      var txt=await r.text();
+      console.log("startDefi error:",txt);
+      alert("Erreur démarrage: "+r.status);
+    }
+  }catch(e){
+    console.log("startDefi exception:",e);
+    alert("Erreur: "+e.message);
   }
 }
 
