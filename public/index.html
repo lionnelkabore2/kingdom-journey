@@ -1829,7 +1829,6 @@ async function startDefi(){
   });
 }
 
-var DEFI_TIME=15; // secondes par question
 function startQuestionTimer(){
   if(DEFI.countdown)clearInterval(DEFI.countdown);
   var left=DEFI_TIME;
@@ -1839,7 +1838,8 @@ function startQuestionTimer(){
     updateTimerDisplay(left);
     if(left<=0){
       clearInterval(DEFI.countdown);
-      if(!DEFI.answered&&DEFI.room.host_id===S.user.id){
+      // L'hôte passe à la question suivante après 15s dans tous les cas
+      if(DEFI.room&&DEFI.room.host_id===S.user.id){
         nextDefiQuestion();
       }
     }
@@ -1965,23 +1965,14 @@ async function answerDefi(choice){
     fb.textContent=ok?"✅ +"+(pts>0?pts:0)+" pts":"❌";
   }
 
-  // Si hôte, vérifier si on peut passer à la suite
+  // Si hôte, attendre la fin du timer (pas de raccourci si quelqu'un a trouvé)
+  // La question suivante ne vient qu'à la fin du compte à rebours
   if(DEFI.room.host_id===S.user.id){
-    setTimeout(function(){checkAllAnswered();},2000);
+    // Ne rien faire ici — nextDefiQuestion sera appelé par le timer
   }
 }
 
-async function checkAllAnswered(){
-  if(!DEFI.room)return;
-  var qi=DEFI.room.current_q||0;
-  var r=await fetch(SB_URL+"/rest/v1/cev_room_answers?room_id=eq."+DEFI.room.id+"&q_index=eq."+qi,{
-    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-  });
-  var ans=await r.json()||[];
-  if(ans.length>=DEFI.players.length||DEFI.room.host_id===S.user.id){
-    setTimeout(function(){nextDefiQuestion();},1500);
-  }
-}
+// La progression est gérée uniquement par le timer de 15s
 
 async function nextDefiQuestion(){
   if(!DEFI.room||DEFI.room.host_id!==S.user.id)return;
