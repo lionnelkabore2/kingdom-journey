@@ -1548,11 +1548,13 @@ function shareVerseLink(){
 function goTo(s){
   document.querySelectorAll(".scr").forEach(function(e){e.classList.remove("active");});
   document.querySelectorAll(".ni").forEach(function(e){e.classList.remove("active");});
-  document.getElementById(s+"-screen").classList.add("active");
+  var scr=document.getElementById(s+"-screen");
+  if(scr)scr.classList.add("active");
   var n=document.getElementById("nav-"+s);if(n)n.classList.add("active");
   if(s==="quiz")renderQuiz();
   if(s==="verset")renderVerset();
   if(s==="classement")renderCls();
+  if(s==="defi")renderDefi();
 }
 
 function initApp(){
@@ -2086,19 +2088,7 @@ function shareDefiResult(){
   else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
 }
 
-// Mettre à jour goTo pour inclure defi
-var _origGoTo=goTo;
-goTo=function(s){
-  document.querySelectorAll(".scr").forEach(function(e){e.classList.remove("active");});
-  document.querySelectorAll(".ni").forEach(function(e){e.classList.remove("active");});
-  var scr=document.getElementById(s+"-screen");
-  if(scr)scr.classList.add("active");
-  var n=document.getElementById("nav-"+s);if(n)n.classList.add("active");
-  if(s==="quiz")renderQuiz();
-  if(s==="verset")renderVerset();
-  if(s==="classement")renderCls();
-  if(s==="defi")renderDefi();
-};
+// Mettre à jour goTo pour inclure defi — fusionné dans la fonction principale
   applyLangUI();
   try{
     var sess=localStorage.getItem("cev_session");
