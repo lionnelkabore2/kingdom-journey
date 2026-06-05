@@ -1800,7 +1800,11 @@ function renderDefiWaiting(){
     // Bouton démarrer (hôte seulement, si tous prêts)
     if(isHost){
       var allReady=DEFI.players.length>=2&&DEFI.players.every(function(p){return p.ready;});
-      h+='<button class="defi-btn" style="margin-top:8px;'+(allReady?"":"opacity:.5;cursor:not-allowed")+'" onclick="'+(allReady?"startDefi()":"alert(\''+(lbl?"Attends que tous les joueurs soient prêts":"Wait for all players to be ready")+'\')">'+(allReady?"🚀 "+(lbl?"Démarrer !":"Start!"):"🕐 "+(lbl?"En attente...":"Waiting..."))+'</button>';
+    var alertMsg=lbl?"Attends que tous les joueurs soient prets":"Wait for all players to be ready";
+    var startAction=allReady?"startDefi()":"alert('"+alertMsg+"')";
+    var startLabel=allReady?"🚀 "+(lbl?"Demarrer !":"Start!"):"🕐 "+(lbl?"En attente...":"Waiting...");
+    var startStyle="margin-top:8px;"+(allReady?"":"opacity:.5;cursor:not-allowed");
+    h+='<button class="defi-btn" style="'+startStyle+'" onclick="'+startAction+'">'+startLabel+'</button>';
     }
     h+='<button class="defi-btn-out" onclick="leaveRoom()">🚪 '+(lbl?"Quitter la salle":"Leave room")+'</button>';
     c.innerHTML=h;
@@ -2089,6 +2093,8 @@ function shareDefiResult(){
 }
 
 // Mettre à jour goTo pour inclure defi — fusionné dans la fonction principale
+
+window.onload=function(){
   applyLangUI();
   try{
     var sess=localStorage.getItem("cev_session");
