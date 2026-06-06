@@ -1833,32 +1833,30 @@ function subscribeRoom(roomId){
         });
       }
       if(topic.includes("cev_room_answers")){
-        // Incrémenter le compteur si c'est un autre joueur
         if(rec.user_id!==S.user.id){
           DEFI_ANSWERED_COUNT++;
-          // Banner SEULEMENT pour le premier correct
+          // Banner si premier correct
           if(rec.is_correct&&!DEFI_FIRST_CORRECT){
             DEFI_FIRST_CORRECT=true;
-            var b=document.createElement("div");
-            b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.2)";
-            b.textContent="⚡ "+(rec.prenom||"?")+" a trouvé en premier !";
-            document.body.appendChild(b);
-            setTimeout(function(){if(b.parentNode)b.remove();},2500);
+            var ba=document.createElement("div");
+            ba.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.2)";
+            ba.textContent="⚡ "+(rec.prenom||"?")+" a trouve en premier !";
+            document.body.appendChild(ba);
+            setTimeout(function(){if(ba.parentNode)ba.remove();},2000);
           }
         }
-        // Mettre à jour les scores
         loadPlayers().then(function(){
+          // Mettre a jour les barres de score
+          for(var j=0;j<DEFI.players.length;j++){
+            var pct=Math.min(100,Math.round((DEFI.players[j].score/DEFI_WIN_SCORE)*100));
+            var bar=document.getElementById("score-bar-"+DEFI.players[j].user_id);
+            var lbl=document.getElementById("score-lbl-"+DEFI.players[j].user_id);
+            if(bar)bar.style.width=pct+"%";
+            if(lbl)lbl.textContent=DEFI.players[j].score+"/"+DEFI_WIN_SCORE;
+          }
+          // Verifier si tout le monde a repondu
           if(DEFI.room&&DEFI.room.status==="playing"){
-            var sorted=DEFI.players.slice().sort(function(a,b){return b.score-a.score;});
-            for(var j=0;j<sorted.length;j++){
-              var pct=Math.min(100,Math.round((sorted[j].score/DEFI_WIN_SCORE)*100));
-              var bar=document.getElementById("score-bar-"+sorted[j].user_id);
-              var lbl=document.getElementById("score-lbl-"+sorted[j].user_id);
-              if(bar)bar.style.width=pct+"%";
-              if(lbl)lbl.textContent=sorted[j].score+"/"+DEFI_WIN_SCORE;
-            }
-            // Si tout le monde a répondu → arrêter le timer et attendre 2s
-            checkAllPlayersAnswered(DEFI.room.current_q||0);
+            checkAllAnswered(DEFI.room.current_q||0);
           }
         });
       }
@@ -1992,9 +1990,9 @@ async function startDefi(){
 
 // DEFI_FIRST_CORRECT = true si quelqu'un a déjà trouvé la bonne réponse
 // ── DEFI TIMER & ANSWER LOGIC ─────────────────────────────
-var DEFI_FIRST_CORRECT=false;  // qui a répondu en premier correctement
-var DEFI_ANSWERED_COUNT=0;     // nb de joueurs ayant répondu cette question
-var DEFI_NEXT_PENDING=false;   // évite double déclenchement
+var DEFI_FIRST_CORRECT=false;
+var DEFI_ANSWERED_COUNT=0;
+var DEFI_NEXT_PENDING=false;
 
 function startQuestionTimer(){
   if(DEFI.countdown)clearInterval(DEFI.countdown);
@@ -2010,18 +2008,28 @@ function startQuestionTimer(){
     if(left<=0){
       clearInterval(DEFI.countdown);
       DEFI.countdown=null;
-      triggerNextQuestion(qi);
+      // 15s ecoulees : attendre 2s puis passer
+      waitThenNext(qi);
     }
   },1000);
 }
 
-function triggerNextQuestion(qi){
+function checkAllAnswered(qi){
+  // Tout le monde a repondu avant la fin : arreter le timer et attendre 2s
+  if(DEFI_NEXT_PENDING)return;
+  if(DEFI_ANSWERED_COUNT<DEFI.players.length)return;
+  if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
+  waitThenNext(qi);
+}
+
+function waitThenNext(qi){
   if(DEFI_NEXT_PENDING)return;
   DEFI_NEXT_PENDING=true;
+  // Afficher 2s sur le timer
   var el=document.getElementById("defi-timer");
-  if(el){el.style.fontSize="14px";el.style.color="var(--orange)";el.textContent="2s";}
+  if(el){el.style.fontSize="16px";el.style.color="var(--orange)";el.textContent="2";}
   setTimeout(function(){
-    if(el)el.textContent="1s";
+    if(el)el.textContent="1";
     setTimeout(function(){
       if(DEFI.room&&DEFI.room.host_id===S.user.id){
         nextDefiQuestion();
@@ -2032,42 +2040,19 @@ function triggerNextQuestion(qi){
   },1000);
 }
 
-function checkAllPlayersAnswered(qi){
-  if(DEFI_NEXT_PENDING)return;
-  if(DEFI_ANSWERED_COUNT>=DEFI.players.length){
-    // Arrêter le décompte de 15s en cours
-    if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
-    DEFI_NEXT_PENDING=true;
-    // Attendre 2s puis question suivante
-    var el=document.getElementById("defi-timer");
-    if(el){el.style.fontSize="14px";el.style.color="var(--orange)";el.textContent="2s";}
-    setTimeout(function(){
-      if(el)el.textContent="1s";
-      setTimeout(function(){
-        if(DEFI.room&&DEFI.room.host_id===S.user.id){
-          nextDefiQuestion();
-        } else {
-          recheckRoomStatus(qi);
-        }
-      },1000);
-    },1000);
-  }
-}
-
 async function answerDefi(choice){
   if(DEFI.answered)return;
   DEFI.answered=true;
   DEFI_ANSWERED_COUNT++;
   var qi=DEFI.room.current_q||0;
   var q=DEFI.qs[qi];
-  var ok=q.ans===choice;
-  var isFirst=ok&&!DEFI_FIRST_CORRECT;
-  if(ok)DEFI_FIRST_CORRECT=true;
+  var ok=(q.ans===choice);
+  var isFirst=(ok&&!DEFI_FIRST_CORRECT);
+  if(isFirst)DEFI_FIRST_CORRECT=true;
 
-  // Points : +1/+2/+3 selon difficulté + 1 bonus si premier
+  // Points : diff + bonus si premier
   var pts=ok?(q.diff==="hard"?3:q.diff==="medium"?2:1):0;
-  var bonus=isFirst?1:0;
-  var total=pts+bonus;
+  var total=pts+(isFirst?1:0);
 
   // Colorer les boutons
   for(var i=0;i<q.opts.length;i++){
@@ -2079,44 +2064,33 @@ async function answerDefi(choice){
     }
   }
 
-  // Feedback visuel
+  // Feedback sur le timer (ne remplace pas encore le vrai decompte)
   var el=document.getElementById("defi-timer");
-  if(el){
-    el.style.fontSize="12px";
-    if(ok){
-      el.style.color="#059669";
-      el.textContent=isFirst?"⚡ +"+total+"pts (1er!)":"+"+pts+"pts";
-    } else {
-      el.style.color="#EF4444";
-      el.textContent="❌";
-    }
+  if(el&&!DEFI_NEXT_PENDING){
+    el.style.fontSize="11px";
+    el.style.color=ok?"#059669":"#EF4444";
+    el.textContent=ok?(isFirst?"⚡ +"+total+"pts":"✅ +"+pts+"pts"):"❌";
   }
 
-  // Banner "premier" visible par toi-même seulement si tu es vraiment le 1er
+  // Banner premier correct
   if(isFirst){
     var bann=document.createElement("div");
-    bann.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.2)";
+    bann.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3)";
     bann.textContent="⚡ Tu es le premier ! +1 bonus";
     document.body.appendChild(bann);
-    setTimeout(function(){if(bann.parentNode)bann.remove();},2500);
+    setTimeout(function(){if(bann.parentNode)bann.remove();},2000);
   }
 
   if(ok)launchMiniConfetti();
 
-  // Mise à jour locale du score
+  // Score local
   if(total>0){
     for(var pi=0;pi<DEFI.players.length;pi++){
-      if(DEFI.players[pi].user_id===S.user.id){
-        DEFI.players[pi].score+=total;
-        break;
-      }
+      if(DEFI.players[pi].user_id===S.user.id){DEFI.players[pi].score+=total;break;}
     }
   }
 
-  // Vérifier immédiatement si tout le monde a maintenant répondu
-  checkAllPlayersAnswered(qi);
-
-  // Sauvegarder en arrière-plan
+  // Sauvegarder (non bloquant)
   fetch(SB_URL+"/rest/v1/cev_room_answers",{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
@@ -2130,7 +2104,6 @@ async function answerDefi(choice){
       headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
       body:JSON.stringify({score:myPl.score})
     });
-    // Victoire ?
     if(myPl.score>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
       clearInterval(DEFI.countdown);
       fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
@@ -2142,9 +2115,10 @@ async function answerDefi(choice){
     }
   }
 
-  // Vérifier si tout le monde a répondu
-  checkAllPlayersAnswered(qi);
+  // Verifier si tout le monde a repondu
+  checkAllAnswered(qi);
 }
+
 
 async function recheckRoomStatus(oldQi){
   if(!DEFI.room)return;
