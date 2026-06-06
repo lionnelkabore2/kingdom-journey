@@ -1836,20 +1836,19 @@ function subscribeRoom(roomId){
         // Incrémenter le compteur si c'est un autre joueur
         if(rec.user_id!==S.user.id){
           DEFI_ANSWERED_COUNT++;
-          // Afficher banner si premier correct
+          // Banner SEULEMENT pour le premier correct
           if(rec.is_correct&&!DEFI_FIRST_CORRECT){
             DEFI_FIRST_CORRECT=true;
             var b=document.createElement("div");
-            b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.2);animation:popIn .3s ease";
+            b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.2)";
             b.textContent="⚡ "+(rec.prenom||"?")+" a trouvé en premier !";
             document.body.appendChild(b);
             setTimeout(function(){if(b.parentNode)b.remove();},2500);
           }
         }
-        // Mettre à jour les scores et vérifier si tout le monde a répondu
+        // Mettre à jour les scores
         loadPlayers().then(function(){
           if(DEFI.room&&DEFI.room.status==="playing"){
-            // Rafraîchir juste les barres de score sans recréer tout le DOM
             var sorted=DEFI.players.slice().sort(function(a,b){return b.score-a.score;});
             for(var j=0;j<sorted.length;j++){
               var pct=Math.min(100,Math.round((sorted[j].score/DEFI_WIN_SCORE)*100));
@@ -1858,6 +1857,7 @@ function subscribeRoom(roomId){
               if(bar)bar.style.width=pct+"%";
               if(lbl)lbl.textContent=sorted[j].score+"/"+DEFI_WIN_SCORE;
             }
+            // Si tout le monde a répondu → arrêter le timer et attendre 2s
             checkAllPlayersAnswered(DEFI.room.current_q||0);
           }
         });
@@ -2039,8 +2039,9 @@ function showNextCountdown(n,cb){
 }
 
 function checkAllPlayersAnswered(qi){
-  // Si tous les joueurs ont répondu, déclencher la suite
+  if(DEFI_NEXT_PENDING)return;
   if(DEFI_ANSWERED_COUNT>=DEFI.players.length){
+    // Tout le monde a répondu → arrêter le timer de 15s et lancer 2s
     clearInterval(DEFI.countdown);
     DEFI.countdown=null;
     triggerNextQuestion(qi);
@@ -2083,6 +2084,15 @@ async function answerDefi(choice){
       el.style.color="#EF4444";
       el.textContent="❌";
     }
+  }
+
+  // Banner "premier" visible par toi-même seulement si tu es vraiment le 1er
+  if(isFirst){
+    var bann=document.createElement("div");
+    bann.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.2)";
+    bann.textContent="⚡ Tu es le premier ! +1 bonus";
+    document.body.appendChild(bann);
+    setTimeout(function(){if(bann.parentNode)bann.remove();},2500);
   }
 
   if(ok)launchMiniConfetti();
