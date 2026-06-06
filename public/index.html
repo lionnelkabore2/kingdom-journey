@@ -1835,8 +1835,26 @@ function subscribeRoom(roomId){
       if(topic.includes("cev_room_answers")){
         loadPlayers().then(function(){
           if(DEFI.room&&DEFI.room.status==="playing"){
+            // Mettre à jour les scores affichés
             renderDefiPlaying();
-            checkAllAnswered();
+            // Si la réponse est correcte et que personne n'avait encore trouvé
+            if(rec.is_correct&&!DEFI_FIRST_CORRECT){
+              DEFI_FIRST_CORRECT=true;
+              // Montrer qui a trouvé
+              var banner=document.getElementById("defi-first-banner");
+              if(!banner){
+                var b=document.createElement("div");
+                b.id="defi-first-banner";
+                b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:999;box-shadow:0 4px 15px rgba(0,0,0,.2)";
+                b.textContent="🏆 "+(rec.prenom||"?")+" a trouvé !";
+                document.body.appendChild(b);
+                setTimeout(function(){if(b.parentNode)b.remove();},2500);
+              }
+              // Accélérer le timer si pas encore répondu
+              if(!DEFI.answered){accelerateTimer();}
+              // L'hôte accélère aussi
+              if(DEFI.room.host_id===S.user.id){accelerateTimer();}
+            }
           }
         });
       }
@@ -1968,8 +1986,12 @@ async function startDefi(){
   }
 }
 
+// DEFI_FIRST_CORRECT = true si quelqu'un a déjà trouvé la bonne réponse
+var DEFI_FIRST_CORRECT=false;
+
 function startQuestionTimer(){
   if(DEFI.countdown)clearInterval(DEFI.countdown);
+  DEFI_FIRST_CORRECT=false;
   var left=DEFI_TIME;
   updateTimerDisplay(left);
   var qi=DEFI.room?DEFI.room.current_q:0;
@@ -1979,17 +2001,118 @@ function startQuestionTimer(){
     if(left<=0){
       clearInterval(DEFI.countdown);
       DEFI.countdown=null;
-      // Tous les joueurs vérifient si la question a changé, l'hôte la fait changer
       if(DEFI.room&&DEFI.room.host_id===S.user.id){
         nextDefiQuestion();
       } else {
-        // Non-hôte : vérifier si l'hôte a déjà passé la question
-        setTimeout(function(){
-          recheckRoomStatus(qi);
-        },2000);
+        setTimeout(function(){recheckRoomStatus(qi);},2000);
       }
     }
   },1000);
+}
+
+function accelerateTimer(){
+  // Accélérer le timer à 3 secondes
+  if(DEFI.countdown)clearInterval(DEFI.countdown);
+  var left=3;
+  updateTimerDisplay(left);
+  var qi=DEFI.room?DEFI.room.current_q:0;
+  DEFI.countdown=setInterval(function(){
+    left--;
+    updateTimerDisplay(left);
+    if(left<=0){
+      clearInterval(DEFI.countdown);
+      DEFI.countdown=null;
+      if(DEFI.room&&DEFI.room.host_id===S.user.id){
+        nextDefiQuestion();
+      } else {
+        setTimeout(function(){recheckRoomStatus(qi);},1500);
+      }
+    }
+  },1000);
+}
+
+async function answerDefi(choice){
+  if(DEFI.answered)return;
+  DEFI.answered=true;
+  var qi=DEFI.room.current_q||0;
+  var q=DEFI.qs[qi];
+  var ok=q.ans===choice;
+
+  // Colorer les boutons immédiatement
+  for(var i=0;i<4;i++){
+    var b=document.getElementById("dob"+i);
+    if(b){b.style.pointerEvents="none";if(i===q.ans)b.classList.add("ok");else if(i===choice&&!ok)b.classList.add("ng");}
+  }
+
+  // Calculer les points SEULEMENT si personne n'a encore trouvé
+  var pts=0;
+  if(ok&&!DEFI_FIRST_CORRECT){
+    pts=q.diff==="hard"?3:q.diff==="medium"?2:1;
+    DEFI_FIRST_CORRECT=true;
+    // Marquer dans Supabase que quelqu'un a trouvé (pour les autres)
+    if(DEFI.room.host_id===S.user.id){
+      // L'hôte accélère directement le timer
+      accelerateTimer();
+    } else {
+      // Signaler à l'hôte via une réponse correcte
+      // L'hôte verra via realtime et accélérera
+    }
+    accelerateTimer(); // Tout le monde accélère localement
+  } else if(ok&&DEFI_FIRST_CORRECT){
+    // Quelqu'un a déjà trouvé — pas de points
+    var fb=document.getElementById("defi-timer");
+    if(fb){fb.style.fontSize="11px";fb.textContent="👍";}
+  }
+
+  // Feedback visuel
+  var el=document.getElementById("defi-timer");
+  if(el&&pts>0){
+    el.style.fontSize="13px";
+    el.style.color="#059669";
+    el.textContent="+"+pts+" pts !";
+    // Relancer le compte à rebours 3s après affichage
+    setTimeout(function(){accelerateTimer();},100);
+  } else if(el&&ok){
+    el.style.fontSize="11px";
+    el.textContent="👍";
+  } else if(el&&!ok){
+    el.style.fontSize="13px";
+    el.style.color="#EF4444";
+    el.textContent="❌";
+  }
+
+  if(ok)launchMiniConfetti();
+
+  // Mise à jour locale du score
+  if(pts>0){
+    for(var pi=0;pi<DEFI.players.length;pi++){
+      if(DEFI.players[pi].user_id===S.user.id){DEFI.players[pi].score+=pts;break;}
+    }
+  }
+
+  // Enregistrer en arrière-plan
+  fetch(SB_URL+"/rest/v1/cev_room_answers",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
+    body:JSON.stringify({room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.prenom,q_index:qi,answer:choice,is_correct:ok})
+  });
+
+  if(pts>0){
+    var myPl=DEFI.players.find(function(p){return p.user_id===S.user.id;})||{score:0};
+    fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
+      method:"PATCH",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
+      body:JSON.stringify({score:myPl.score})
+    });
+    if(myPl.score>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
+      clearInterval(DEFI.countdown);
+      fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
+        body:JSON.stringify({status:"finished"})
+      });
+    }
+  }
 }
 
 async function recheckRoomStatus(oldQi){
