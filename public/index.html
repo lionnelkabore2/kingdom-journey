@@ -2032,67 +2032,59 @@ function renderDefiPlaying(){
 async function answerDefi(choice){
   if(DEFI.answered)return;
   DEFI.answered=true;
-  if(DEFI.countdown)clearInterval(DEFI.countdown);
+  // NE PAS stopper le timer - il doit continuer pour passer la question
   var qi=DEFI.room.current_q||0;
   var q=DEFI.qs[qi];
   var ok=q.ans===choice;
+  var pts=ok?(q.diff==="hard"?3:q.diff==="medium"?2:1):0;
 
-  // Colorer les boutons
+  // Colorer les boutons immediatement
   for(var i=0;i<4;i++){
     var b=document.getElementById("dob"+i);
     if(b){b.style.pointerEvents="none";if(i===q.ans)b.classList.add("ok");else if(i===choice&&!ok)b.classList.add("ng");}
   }
 
-  // Calculer les points
-  var pts=ok?(q.diff==="hard"?3:q.diff==="medium"?2:1):0;
+  // Feedback visuel rapide (ne touche pas au timer qui continue)
+  var fb=document.getElementById("defi-timer");
+  if(fb){
+    fb.style.fontSize="12px";
+    fb.textContent=ok?"+ "+pts+" pts":"X";
+  }
 
-  // Enregistrer la réponse
-  await fetch(SB_URL+"/rest/v1/cev_room_answers",{
+  if(ok)launchMiniConfetti();
+
+  // Mise a jour locale du score
+  if(pts>0){
+    for(var pi=0;pi<DEFI.players.length;pi++){
+      if(DEFI.players[pi].user_id===S.user.id){DEFI.players[pi].score+=pts;break;}
+    }
+  }
+
+  // Enregistrer en arriere-plan (non bloquant)
+  fetch(SB_URL+"/rest/v1/cev_room_answers",{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
     body:JSON.stringify({room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.prenom,q_index:qi,answer:choice,is_correct:ok})
   });
 
-  // Mettre à jour le score et vérifier la victoire
   if(pts>0){
-    var myPlayer=DEFI.players.find(function(p){return p.user_id===S.user.id;})||{score:0};
-    var newScore=myPlayer.score+pts;
-    await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
+    var myScore=DEFI.players.find(function(p){return p.user_id===S.user.id;})||{score:0};
+    fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
       method:"PATCH",
       headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({score:newScore})
+      body:JSON.stringify({score:myScore.score})
     });
-    if(ok)launchMiniConfetti();
-
-    // Vérifier si on a atteint 20 points — VICTOIRE !
-    if(newScore>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
-      // Hôte termine la partie
-      await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
+    // Victoire ?
+    if(myScore.score>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
+      clearInterval(DEFI.countdown);
+      fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
         method:"PATCH",
         headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
         body:JSON.stringify({status:"finished"})
       });
-      return;
-    } else if(newScore>=DEFI_WIN_SCORE){
-      var fb2=document.getElementById("defi-timer");
-      if(fb2){fb2.className="defi-timer";fb2.style.fontSize="11px";fb2.textContent="🏆 "+(S.lang==="fr"?"VICTOIRE !":"VICTORY!");}
-      return;
     }
   }
-
-  // Afficher le feedback points
-  var fb=document.getElementById("defi-timer");
-  if(fb){
-    fb.className="defi-timer";
-    fb.style.fontSize="14px";
-    fb.textContent=ok?"✅ +"+(pts>0?pts:0)+" pts":"❌";
-  }
-
-  // Si hôte, attendre la fin du timer (pas de raccourci si quelqu'un a trouvé)
-  // La question suivante ne vient qu'à la fin du compte à rebours
-  if(DEFI.room.host_id===S.user.id){
-    // Ne rien faire ici — nextDefiQuestion sera appelé par le timer
-  }
+  // Le timer continue normalement et appellera nextDefiQuestion a 0
 }
 
 // La progression est gérée uniquement par le timer de 15s
