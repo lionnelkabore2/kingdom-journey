@@ -2018,33 +2018,39 @@ function startQuestionTimer(){
 function triggerNextQuestion(qi){
   if(DEFI_NEXT_PENDING)return;
   DEFI_NEXT_PENDING=true;
-  // Afficher le compte à rebours 2s
-  showNextCountdown(2,function(){
-    if(DEFI.room&&DEFI.room.host_id===S.user.id){
-      nextDefiQuestion();
-    } else {
-      setTimeout(function(){recheckRoomStatus(qi);},1500);
-    }
-  });
-}
-
-function showNextCountdown(n,cb){
   var el=document.getElementById("defi-timer");
-  if(!el){cb();return;}
-  el.style.fontSize="14px";
-  el.style.color="var(--orange)";
-  el.textContent=n+"s...";
-  if(n<=0){cb();return;}
-  setTimeout(function(){showNextCountdown(n-1,cb);},1000);
+  if(el){el.style.fontSize="14px";el.style.color="var(--orange)";el.textContent="2s";}
+  setTimeout(function(){
+    if(el)el.textContent="1s";
+    setTimeout(function(){
+      if(DEFI.room&&DEFI.room.host_id===S.user.id){
+        nextDefiQuestion();
+      } else {
+        recheckRoomStatus(qi);
+      }
+    },1000);
+  },1000);
 }
 
 function checkAllPlayersAnswered(qi){
   if(DEFI_NEXT_PENDING)return;
   if(DEFI_ANSWERED_COUNT>=DEFI.players.length){
-    // Tout le monde a répondu → arrêter le timer de 15s et lancer 2s
-    clearInterval(DEFI.countdown);
-    DEFI.countdown=null;
-    triggerNextQuestion(qi);
+    // Arrêter le décompte de 15s en cours
+    if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
+    DEFI_NEXT_PENDING=true;
+    // Attendre 2s puis question suivante
+    var el=document.getElementById("defi-timer");
+    if(el){el.style.fontSize="14px";el.style.color="var(--orange)";el.textContent="2s";}
+    setTimeout(function(){
+      if(el)el.textContent="1s";
+      setTimeout(function(){
+        if(DEFI.room&&DEFI.room.host_id===S.user.id){
+          nextDefiQuestion();
+        } else {
+          recheckRoomStatus(qi);
+        }
+      },1000);
+    },1000);
   }
 }
 
@@ -2106,6 +2112,9 @@ async function answerDefi(choice){
       }
     }
   }
+
+  // Vérifier immédiatement si tout le monde a maintenant répondu
+  checkAllPlayersAnswered(qi);
 
   // Sauvegarder en arrière-plan
   fetch(SB_URL+"/rest/v1/cev_room_answers",{
