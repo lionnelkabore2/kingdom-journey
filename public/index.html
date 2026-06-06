@@ -1833,28 +1833,32 @@ function subscribeRoom(roomId){
         });
       }
       if(topic.includes("cev_room_answers")){
+        // Incrémenter le compteur si c'est un autre joueur
+        if(rec.user_id!==S.user.id){
+          DEFI_ANSWERED_COUNT++;
+          // Afficher banner si premier correct
+          if(rec.is_correct&&!DEFI_FIRST_CORRECT){
+            DEFI_FIRST_CORRECT=true;
+            var b=document.createElement("div");
+            b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.2);animation:popIn .3s ease";
+            b.textContent="⚡ "+(rec.prenom||"?")+" a trouvé en premier !";
+            document.body.appendChild(b);
+            setTimeout(function(){if(b.parentNode)b.remove();},2500);
+          }
+        }
+        // Mettre à jour les scores et vérifier si tout le monde a répondu
         loadPlayers().then(function(){
           if(DEFI.room&&DEFI.room.status==="playing"){
-            // Mettre à jour les scores affichés
-            renderDefiPlaying();
-            // Si la réponse est correcte et que personne n'avait encore trouvé
-            if(rec.is_correct&&!DEFI_FIRST_CORRECT){
-              DEFI_FIRST_CORRECT=true;
-              // Montrer qui a trouvé
-              var banner=document.getElementById("defi-first-banner");
-              if(!banner){
-                var b=document.createElement("div");
-                b.id="defi-first-banner";
-                b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:999;box-shadow:0 4px 15px rgba(0,0,0,.2)";
-                b.textContent="🏆 "+(rec.prenom||"?")+" a trouvé !";
-                document.body.appendChild(b);
-                setTimeout(function(){if(b.parentNode)b.remove();},2500);
-              }
-              // Accélérer le timer si pas encore répondu
-              if(!DEFI.answered){accelerateTimer();}
-              // L'hôte accélère aussi
-              if(DEFI.room.host_id===S.user.id){accelerateTimer();}
+            // Rafraîchir juste les barres de score sans recréer tout le DOM
+            var sorted=DEFI.players.slice().sort(function(a,b){return b.score-a.score;});
+            for(var j=0;j<sorted.length;j++){
+              var pct=Math.min(100,Math.round((sorted[j].score/DEFI_WIN_SCORE)*100));
+              var bar=document.getElementById("score-bar-"+sorted[j].user_id);
+              var lbl=document.getElementById("score-lbl-"+sorted[j].user_id);
+              if(bar)bar.style.width=pct+"%";
+              if(lbl)lbl.textContent=sorted[j].score+"/"+DEFI_WIN_SCORE;
             }
+            checkAllPlayersAnswered(DEFI.room.current_q||0);
           }
         });
       }
@@ -1987,11 +1991,16 @@ async function startDefi(){
 }
 
 // DEFI_FIRST_CORRECT = true si quelqu'un a déjà trouvé la bonne réponse
-var DEFI_FIRST_CORRECT=false;
+// ── DEFI TIMER & ANSWER LOGIC ─────────────────────────────
+var DEFI_FIRST_CORRECT=false;  // qui a répondu en premier correctement
+var DEFI_ANSWERED_COUNT=0;     // nb de joueurs ayant répondu cette question
+var DEFI_NEXT_PENDING=false;   // évite double déclenchement
 
 function startQuestionTimer(){
   if(DEFI.countdown)clearInterval(DEFI.countdown);
   DEFI_FIRST_CORRECT=false;
+  DEFI_ANSWERED_COUNT=0;
+  DEFI_NEXT_PENDING=false;
   var left=DEFI_TIME;
   updateTimerDisplay(left);
   var qi=DEFI.room?DEFI.room.current_q:0;
@@ -2001,109 +2010,108 @@ function startQuestionTimer(){
     if(left<=0){
       clearInterval(DEFI.countdown);
       DEFI.countdown=null;
-      if(DEFI.room&&DEFI.room.host_id===S.user.id){
-        nextDefiQuestion();
-      } else {
-        setTimeout(function(){recheckRoomStatus(qi);},2000);
-      }
+      triggerNextQuestion(qi);
     }
   },1000);
 }
 
-function accelerateTimer(){
-  // Accélérer le timer à 3 secondes
-  if(DEFI.countdown)clearInterval(DEFI.countdown);
-  var left=3;
-  updateTimerDisplay(left);
-  var qi=DEFI.room?DEFI.room.current_q:0;
-  DEFI.countdown=setInterval(function(){
-    left--;
-    updateTimerDisplay(left);
-    if(left<=0){
-      clearInterval(DEFI.countdown);
-      DEFI.countdown=null;
-      if(DEFI.room&&DEFI.room.host_id===S.user.id){
-        nextDefiQuestion();
-      } else {
-        setTimeout(function(){recheckRoomStatus(qi);},1500);
-      }
+function triggerNextQuestion(qi){
+  if(DEFI_NEXT_PENDING)return;
+  DEFI_NEXT_PENDING=true;
+  // Afficher le compte à rebours 2s
+  showNextCountdown(2,function(){
+    if(DEFI.room&&DEFI.room.host_id===S.user.id){
+      nextDefiQuestion();
+    } else {
+      setTimeout(function(){recheckRoomStatus(qi);},1500);
     }
-  },1000);
+  });
+}
+
+function showNextCountdown(n,cb){
+  var el=document.getElementById("defi-timer");
+  if(!el){cb();return;}
+  el.style.fontSize="14px";
+  el.style.color="var(--orange)";
+  el.textContent=n+"s...";
+  if(n<=0){cb();return;}
+  setTimeout(function(){showNextCountdown(n-1,cb);},1000);
+}
+
+function checkAllPlayersAnswered(qi){
+  // Si tous les joueurs ont répondu, déclencher la suite
+  if(DEFI_ANSWERED_COUNT>=DEFI.players.length){
+    clearInterval(DEFI.countdown);
+    DEFI.countdown=null;
+    triggerNextQuestion(qi);
+  }
 }
 
 async function answerDefi(choice){
   if(DEFI.answered)return;
   DEFI.answered=true;
+  DEFI_ANSWERED_COUNT++;
   var qi=DEFI.room.current_q||0;
   var q=DEFI.qs[qi];
   var ok=q.ans===choice;
+  var isFirst=ok&&!DEFI_FIRST_CORRECT;
+  if(ok)DEFI_FIRST_CORRECT=true;
 
-  // Colorer les boutons immédiatement
-  for(var i=0;i<4;i++){
+  // Points : +1/+2/+3 selon difficulté + 1 bonus si premier
+  var pts=ok?(q.diff==="hard"?3:q.diff==="medium"?2:1):0;
+  var bonus=isFirst?1:0;
+  var total=pts+bonus;
+
+  // Colorer les boutons
+  for(var i=0;i<q.opts.length;i++){
     var b=document.getElementById("dob"+i);
-    if(b){b.style.pointerEvents="none";if(i===q.ans)b.classList.add("ok");else if(i===choice&&!ok)b.classList.add("ng");}
-  }
-
-  // Calculer les points SEULEMENT si personne n'a encore trouvé
-  var pts=0;
-  if(ok&&!DEFI_FIRST_CORRECT){
-    pts=q.diff==="hard"?3:q.diff==="medium"?2:1;
-    DEFI_FIRST_CORRECT=true;
-    // Marquer dans Supabase que quelqu'un a trouvé (pour les autres)
-    if(DEFI.room.host_id===S.user.id){
-      // L'hôte accélère directement le timer
-      accelerateTimer();
-    } else {
-      // Signaler à l'hôte via une réponse correcte
-      // L'hôte verra via realtime et accélérera
+    if(b){
+      b.style.pointerEvents="none";
+      if(i===q.ans)b.classList.add("ok");
+      else if(i===choice&&!ok)b.classList.add("ng");
     }
-    accelerateTimer(); // Tout le monde accélère localement
-  } else if(ok&&DEFI_FIRST_CORRECT){
-    // Quelqu'un a déjà trouvé — pas de points
-    var fb=document.getElementById("defi-timer");
-    if(fb){fb.style.fontSize="11px";fb.textContent="👍";}
   }
 
   // Feedback visuel
   var el=document.getElementById("defi-timer");
-  if(el&&pts>0){
-    el.style.fontSize="13px";
-    el.style.color="#059669";
-    el.textContent="+"+pts+" pts !";
-    // Relancer le compte à rebours 3s après affichage
-    setTimeout(function(){accelerateTimer();},100);
-  } else if(el&&ok){
-    el.style.fontSize="11px";
-    el.textContent="👍";
-  } else if(el&&!ok){
-    el.style.fontSize="13px";
-    el.style.color="#EF4444";
-    el.textContent="❌";
+  if(el){
+    el.style.fontSize="12px";
+    if(ok){
+      el.style.color="#059669";
+      el.textContent=isFirst?"⚡ +"+total+"pts (1er!)":"+"+pts+"pts";
+    } else {
+      el.style.color="#EF4444";
+      el.textContent="❌";
+    }
   }
 
   if(ok)launchMiniConfetti();
 
   // Mise à jour locale du score
-  if(pts>0){
+  if(total>0){
     for(var pi=0;pi<DEFI.players.length;pi++){
-      if(DEFI.players[pi].user_id===S.user.id){DEFI.players[pi].score+=pts;break;}
+      if(DEFI.players[pi].user_id===S.user.id){
+        DEFI.players[pi].score+=total;
+        break;
+      }
     }
   }
 
-  // Enregistrer en arrière-plan
+  // Sauvegarder en arrière-plan
   fetch(SB_URL+"/rest/v1/cev_room_answers",{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
     body:JSON.stringify({room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.prenom,q_index:qi,answer:choice,is_correct:ok})
   });
 
-  if(pts>0){
+  if(total>0){
     var myPl=DEFI.players.find(function(p){return p.user_id===S.user.id;})||{score:0};
     fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
       method:"PATCH",
       headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
       body:JSON.stringify({score:myPl.score})
     });
+    // Victoire ?
     if(myPl.score>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
       clearInterval(DEFI.countdown);
       fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
@@ -2111,8 +2119,12 @@ async function answerDefi(choice){
         headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
         body:JSON.stringify({status:"finished"})
       });
+      return;
     }
   }
+
+  // Vérifier si tout le monde a répondu
+  checkAllPlayersAnswered(qi);
 }
 
 async function recheckRoomStatus(oldQi){
@@ -2187,9 +2199,9 @@ function renderDefiPlaying(){
     h+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">';
     h+='<div class="defi-av" style="width:26px;height:26px;font-size:10px">'+(p.prenom?p.prenom[0]:"?").toUpperCase()+'</div>';
     h+='<span style="font-weight:700;font-size:11px;flex:1;color:var(--dark)">'+(isMe?"⭐ ":"")+p.prenom+'</span>';
-    h+='<span style="font-weight:800;font-size:11px;color:var(--purple)">'+p.score+'/'+DEFI_WIN_SCORE+'</span>';
+    h+='<span id="score-lbl-'+p.user_id+'" style="font-weight:800;font-size:11px;color:var(--purple)">'+p.score+'/'+DEFI_WIN_SCORE+'</span>';
     h+='</div>';
-    h+='<div style="height:6px;background:#E9D5FF;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--purple),var(--blue));border-radius:4px;transition:width .4s"></div></div>';
+    h+='<div style="height:6px;background:#E9D5FF;border-radius:4px;overflow:hidden"><div id="score-bar-'+p.user_id+'" style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--purple),var(--blue));border-radius:4px;transition:width .4s"></div></div>';
     h+='</div>';
   }
   h+='</div>';
