@@ -2261,6 +2261,23 @@ function startQuestionTimer(){
   },1000);
 }
 
+function waitThenNext(qi){
+  if(DEFI_NEXT_PENDING)return;
+  DEFI_NEXT_PENDING=true;
+  var el=document.getElementById("defi-timer");
+  if(el){el.style.fontSize="20px";el.style.color="var(--orange)";el.textContent="2";}
+  setTimeout(function(){
+    if(el)el.textContent="1";
+    setTimeout(function(){
+      if(DEFI.room&&DEFI.room.host_id===S.user.id){
+        nextDefiQuestion();
+      } else {
+        recheckRoomStatus(qi);
+      }
+    },1000);
+  },1000);
+}
+
 async function checkAllAnswered(qi){
   if(DEFI_NEXT_PENDING)return;
   try{
