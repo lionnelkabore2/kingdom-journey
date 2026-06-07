@@ -2041,6 +2041,7 @@ function subscribeRoom(roomId){
       var topic=msg.topic||"";
 
       if(topic.includes("cev_rooms")){
+        var oldStatus=DEFI.room?DEFI.room.status:"waiting";
         var oldQ=DEFI.room?DEFI.room.current_q:-1;
         DEFI.room=rec;
         DEFI.qs=rec.q_data||DEFI.qs;
@@ -2050,10 +2051,11 @@ function subscribeRoom(roomId){
           clearDefiSession();
           renderDefiResults();
         } else if(rec.status==="playing"){
-          if(rec.current_q!==oldQ){
-            // Nouvelle question !
+          // Déclencher si : nouvelle question OU passage de waiting→playing
+          if(rec.current_q!==oldQ||oldStatus!=="playing"){
             if(DEFI.countdown)clearInterval(DEFI.countdown);
             DEFI.answered=false;
+            DEFI_NEXT_PENDING=false;
             renderDefiPlaying();
             startQuestionTimer();
           }
