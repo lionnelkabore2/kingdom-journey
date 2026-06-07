@@ -2446,68 +2446,10 @@ function renderDefiPlaying(){
   }
   h+='</div>';
   c.innerHTML=h;
-  startQuestionTimer();
 }
 
 
 
-async function answerDefi(choice){
-  if(DEFI.answered)return;
-  DEFI.answered=true;
-  // NE PAS stopper le timer - il doit continuer pour passer la question
-  var qi=DEFI.room.current_q||0;
-  var q=DEFI.qs[qi];
-  var ok=q.ans===choice;
-  var pts=ok?(q.diff==="hard"?3:q.diff==="medium"?2:1):0;
-
-  // Colorer les boutons immediatement
-  for(var i=0;i<4;i++){
-    var b=document.getElementById("dob"+i);
-    if(b){b.style.pointerEvents="none";if(i===q.ans)b.classList.add("ok");else if(i===choice&&!ok)b.classList.add("ng");}
-  }
-
-  // Feedback visuel rapide (ne touche pas au timer qui continue)
-  var fb=document.getElementById("defi-timer");
-  if(fb){
-    fb.style.fontSize="12px";
-    fb.textContent=ok?"+ "+pts+" pts":"X";
-  }
-
-  if(ok)launchMiniConfetti();
-
-  // Mise a jour locale du score
-  if(pts>0){
-    for(var pi=0;pi<DEFI.players.length;pi++){
-      if(DEFI.players[pi].user_id===S.user.id){DEFI.players[pi].score+=pts;break;}
-    }
-  }
-
-  // Enregistrer en arriere-plan (non bloquant)
-  fetch(SB_URL+"/rest/v1/cev_room_answers",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
-    body:JSON.stringify({room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.prenom,q_index:qi,answer:choice,is_correct:ok})
-  });
-
-  if(pts>0){
-    var myScore=DEFI.players.find(function(p){return p.user_id===S.user.id;})||{score:0};
-    fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
-      method:"PATCH",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({score:myScore.score})
-    });
-    // Victoire ?
-    if(myScore.score>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
-      clearInterval(DEFI.countdown);
-      fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-        method:"PATCH",
-        headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-        body:JSON.stringify({status:"finished"})
-      });
-    }
-  }
-  // Le timer continue normalement et appellera nextDefiQuestion a 0
-}
 
 // La progression est gérée uniquement par le timer de 15s
 
