@@ -245,14 +245,13 @@ html,body{min-height:100%;font-family:Nunito,sans-serif;background:var(--cream);
       <button class="lang-btn active" onclick="setLang('fr',this)">🇫🇷 Français</button>
       <button class="lang-btn" onclick="setLang('en',this)">🇬🇧 English</button>
     </div>
-    <h3 id="ac-title">Rejoindre le défi</h3>
-    <div class="aopt" id="aopt-box">
-      <button class="aoptb" onclick="selOpt('email',this)"><span>📧</span><div><div style="font-weight:800;font-size:12px" id="opt-email-lbl">Email + Mot de passe</div><div style="font-size:10px;color:var(--gray)" id="opt-email-sub">Compte permanent</div></div></button>
-      <button class="aoptb" onclick="selOpt('name',this)"><span>⚡</span><div><div style="font-weight:800;font-size:12px" id="opt-name-lbl">Juste un prénom</div><div style="font-size:10px;color:var(--gray)" id="opt-name-sub">Connexion rapide, sans mot de passe</div></div></button>
-    </div>
-    <div id="form-email" style="display:none">
+      <h3 style="font-family:'Playfair Display',serif;font-size:16px;color:var(--purple);margin-bottom:14px;text-align:center">✝️ Quiz Biblique C.E.V</h3>
+    <div id="form-email" style="display:block">
       <div class="fd"><label id="lbl-prenom">Prénom</label><input type="text" id="inp-prenom" placeholder="Jean"></div>
-      <div class="fd"><label id="lbl-email">Email</label><input type="email" id="inp-email" placeholder="jean@gmail.com"></div>
+      <div class="fd">
+        <label id="lbl-email">Email ou téléphone</label>
+        <input type="text" id="inp-email" placeholder="jean@gmail.com ou +22600000000">
+      </div>
       <div class="fd"><label id="lbl-pw">Mot de passe</label><input type="password" id="inp-pw" placeholder="••••••••"></div>
       <div class="fd"><label id="lbl-ville">Ville</label><input type="text" id="inp-ville" placeholder="Abidjan"></div>
     </div>
@@ -363,14 +362,61 @@ function setLang(lang,btn){S.lang=lang;document.querySelectorAll(".lang-btn").fo
 function applyLangUI(){var ids={"h-sub":"subtitle","h-logout":"logout","sl-pts":"pts","sl-quiz":"quiz","sl-streak":"jours","sl-rank":"rang","home-sub":"verse_sub","dc-title":"defi_title","mc-quiz-title":"quiz_title","mc-quiz-sub":"quiz_sub","mc-quiz-lbl":"quiz_lbl","mc-verse-title":"verse_title","mc-verse-lbl":"verse_lbl","mc-cls-title":"cls_title","mc-cls-sub":"cls_sub","mc-cls-lbl":"cls_lbl","tab-easy":"tab_easy","tab-med":"tab_med","tab-hard":"tab_hard","nav-home-lbl":"welcome","nav-quiz-lbl":"quiz_title","nav-verset-lbl":"verse_title","nav-cls-lbl":"cls_title","opt-email-lbl":"email_pw","opt-email-sub":"email_pw_sub","opt-name-lbl":"name_only","opt-name-sub":"name_only_sub","lbl-prenom":"prenom","lbl-email":"email","lbl-pw":"pw","lbl-ville":"ville","lbl-prenom2":"prenom","lbl-ville2":"ville","abtn":"start","ac-title":"join","ql-rest":"rest","mc-verse-sub":"verse_sub2","verse-screen-title":"verse_title","cls-screen-title":"cls_title","quiz-screen-title":"quiz_title"};for(var id in ids){var el=document.getElementById(id);if(el)el.textContent=t(ids[id]);}var sw=document.getElementById("aswitch");if(sw)sw.innerHTML=t(S.mode==="reg"?"already":"no_account")+' <span onclick="toggleLogin()">'+t(S.mode==="reg"?"signin":"register")+"</span>";}
 // ── AUTH ──────────────────────────────────────────────────
 function selOpt(opt,btn){S.opt=opt;document.querySelectorAll(".aoptb").forEach(function(b){b.classList.remove("sel");});btn.classList.add("sel");document.getElementById("form-email").style.display=opt==="email"?"block":"none";document.getElementById("form-name").style.display=opt==="name"?"block":"none";}
-function toggleLogin(){S.mode=S.mode==="reg"?"login":"reg";document.getElementById("ac-title").textContent=t(S.mode==="reg"?"join":"signin");applyLangUI();if(S.mode==="login"){document.getElementById("aopt-box").style.display="none";selOpt("email",document.querySelector(".aoptb"));}else{document.getElementById("aopt-box").style.display="flex";document.getElementById("form-email").style.display="none";document.getElementById("form-name").style.display="none";}}
+function toggleLogin(){
+  S.mode=S.mode==="reg"?"login":"reg";
+  var isReg=S.mode==="reg";
+  // Montrer/cacher le champ prénom et ville selon le mode
+  var prenomDiv=document.querySelector("#form-email .fd:first-child");
+  var villeDiv=document.getElementById("inp-ville")?document.getElementById("inp-ville").parentNode:null;
+  if(prenomDiv)prenomDiv.style.display=isReg?"block":"none";
+  if(villeDiv)villeDiv.style.display=isReg?"block":"none";
+  var sw=document.getElementById("aswitch");
+  if(sw)sw.innerHTML=t(isReg?"already":"no_account")+' <span onclick="toggleLogin()">'+t(isReg?"signin":"register")+"</span>";
+}
 function showMsg(msg,type){var el=document.getElementById("amsg");el.textContent=msg;el.className="amsg "+(type||"err");el.style.display="block";}
 async function doAuth(){var btn=document.getElementById("abtn");btn.textContent=t("loading");btn.disabled=true;document.getElementById("amsg").style.display="none";try{if(S.mode==="login")await doLogin();else if(S.opt==="email")await doRegEmail();else await doRegName();}catch(e){showMsg("Erreur: "+e.message);}btn.textContent=t("start");btn.disabled=false;}
 function normPrenom(s){
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9 _-]/g,"").trim();
 }
-async function doRegEmail(){var prenom=document.getElementById("inp-prenom").value.trim();var email=document.getElementById("inp-email").value.trim();var pw=document.getElementById("inp-pw").value;var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";if(!prenom||!email||!pw){showMsg(t("err_fields"));return;}var prenomClean=normPrenom(prenom)||prenom.slice(0,20);var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,ville:ville}}});if(!r.ok){showMsg(r.data.error_description||r.data.msg||"Erreur inscription");return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg("Erreur: pas d'utilisateur");return;}await createProfile(uid,prenomClean,ville,tok);await loginSuccess(uid,prenomClean,ville,0,tok);}
-async function doLogin(){var email=document.getElementById("inp-email").value.trim();var pw=document.getElementById("inp-pw").value;if(!email||!pw){showMsg(t("err_fields"));return;}var r=await sbAuth("token?grant_type=password",{email:email,password:pw});if(!r.ok){showMsg(t("err_login"));return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg(t("err_login"));return;}var prof=await getProfile(uid,tok);if(!prof){await createProfile(uid,email.split("@")[0],"Non précisée",tok);prof={prenom:email.split("@")[0],ville:"Non précisée",score_total:0};}await loginSuccess(uid,prof.prenom,prof.ville,prof.score_total||0,tok);}
+async function doRegEmail(){
+  var prenom=document.getElementById("inp-prenom").value.trim();
+  var contact=document.getElementById("inp-email").value.trim();
+  var pw=document.getElementById("inp-pw").value;
+  var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";
+  if(!prenom||!contact||!pw){showMsg(t("err_fields"));return;}
+  // Si c'est un numéro de téléphone, le convertir en faux email
+  var email=contact;
+  if(!contact.includes("@")){
+    var phone=contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"");
+    email=phone+"@cev.app";
+  }
+  var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
+  var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,ville:ville}}});
+  if(!r.ok){showMsg(r.data.error_description||r.data.msg||"Erreur inscription");return;}
+  var tok=r.data.access_token;
+  var uid=r.data.user?r.data.user.id:null;
+  if(!uid){showMsg("Erreur: pas d'utilisateur");return;}
+  await createProfile(uid,prenomClean,ville,tok);
+  await loginSuccess(uid,prenomClean,ville,0,tok);
+}
+async function doLogin(){
+  var contact=document.getElementById("inp-email").value.trim();
+  var pw=document.getElementById("inp-pw").value;
+  if(!contact||!pw){showMsg(t("err_fields"));return;}
+  var email=contact;
+  if(!contact.includes("@")){
+    var phone=contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"");
+    email=phone+"@cev.app";
+  }
+  var r=await sbAuth("token?grant_type=password",{email:email,password:pw});
+  if(!r.ok){showMsg(t("err_login"));return;}
+  var tok=r.data.access_token;
+  var uid=r.data.user?r.data.user.id:null;
+  if(!uid){showMsg(t("err_login"));return;}
+  var prof=await getProfile(uid,tok);
+  if(!prof){await createProfile(uid,contact.split("@")[0],"Non precisee",tok);prof={prenom:contact.split("@")[0],ville:"Non precisee",score_total:0};}
+  await loginSuccess(uid,prof.prenom,prof.ville,prof.score_total||0,tok);
+}
 async function doRegName(){var prenom=document.getElementById("inp-prenom2").value.trim();var ville=document.getElementById("inp-ville2").value.trim()||"Non precisee";if(!prenom){showMsg(t("err_fields"));return;}var prenomClean=normPrenom(prenom)||prenom.slice(0,20);var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,ville:ville}}});if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}var tok=r.data.access_token;var uid=r.data.user?r.data.user.id:null;if(!uid){showMsg("Erreur creation");return;}await createProfile(uid,prenomClean,ville,tok);await loginSuccess(uid,prenomClean,ville,0,tok);}
 async function createProfile(uid,prenom,ville,tok){var today=todayStr();await sbFetch("cev_profiles?on_conflict=id",{method:"POST",headers:{"Authorization":"Bearer "+tok,"Prefer":"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({id:uid,prenom:prenom,ville:ville,score_today:0,score_total:0,quiz_count:0,last_day:today,streak:0})});}
 async function getProfile(uid,tok){var r=await sbFetch("cev_profiles?id=eq."+uid+"&select=*",{headers:{"Authorization":"Bearer "+tok}});return r.data&&r.data[0]?r.data[0]:null;}
@@ -1478,56 +1524,56 @@ function shareVerseAsImage(){
   // Logo & titre
   ctx.textAlign="center";
   ctx.fillStyle="#FFFFFF";
-  ctx.font="bold 34px Arial";
-  ctx.fillText("✝️  Quiz Biblique C.E.V",W/2,75);
-  ctx.font="18px Arial";
+  ctx.font="bold 48px Arial";
+  ctx.fillText("Quiz Biblique C.E.V",W/2,90);
+  ctx.font="26px Arial";
   ctx.fillStyle="rgba(255,255,255,0.65)";
-  ctx.fillText("Christ Est Vivant  ·  Bible Louis Segond 1910",W/2,115);
+  ctx.fillText("Christ Est Vivant  ·  Bible Louis Segond 1910",W/2,134);
 
-  // Guillemet décoratif
-  ctx.font="bold 130px Georgia";
+  // Guillemet decoratif
+  ctx.font="bold 160px Georgia";
   ctx.fillStyle="rgba(255,255,255,0.12)";
   ctx.textAlign="left";
-  ctx.fillText('"',80,330);
+  ctx.fillText('"',80,370);
 
-  // Texte du verset — GRAND
-  ctx.font="italic bold 34px Georgia";
+  // Texte du verset
+  ctx.font="italic bold 52px Georgia";
   ctx.fillStyle="#FFFFFF";
   ctx.textAlign="center";
-  var textY=250;
-  var lineH=50;
-  var nLines=wrapText(ctx,v.text,W/2,textY,cardW-100,lineH);
-  var afterTextY=textY+nLines*lineH+28;
+  var textY=290;
+  var lineH=70;
+  var nLines=wrapText(ctx,v.text,W/2,textY,cardW-80,lineH);
+  var afterTextY=textY+nLines*lineH+36;
 
-  // Référence — grande et dorée
-  ctx.font="bold 28px Arial";
+  // Reference
+  ctx.font="bold 42px Arial";
   ctx.fillStyle="#FEF3C7";
   ctx.fillText("— "+v.ref+" —",W/2,afterTextY);
 
-  // Ligne de séparation décorative
-  var sepY=afterTextY+36;
+  // Separateur
+  var sepY=afterTextY+54;
   var grad2=ctx.createLinearGradient(pad+60,0,W-pad-60,0);
   grad2.addColorStop(0,"rgba(255,255,255,0)");
   grad2.addColorStop(0.5,"rgba(255,255,255,0.5)");
   grad2.addColorStop(1,"rgba(255,255,255,0)");
-  ctx.strokeStyle=grad2;ctx.lineWidth=1.5;
+  ctx.strokeStyle=grad2;ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(pad+60,sepY);ctx.lineTo(W-pad-60,sepY);ctx.stroke();
 
-  // Défi — étiquette
-  ctx.font="bold 22px Arial";
-  ctx.fillStyle="rgba(255,255,255,0.75)";
-  var defiLabel=S.lang==="fr"?"📅  Défi du jour":"📅  Daily Challenge";
-  ctx.fillText(defiLabel,W/2,sepY+46);
+  // Defi — etiquette
+  ctx.font="bold 36px Arial";
+  ctx.fillStyle="rgba(255,255,255,0.8)";
+  var defiLabel=S.lang==="fr"?"Defi du jour":"Daily Challenge";
+  ctx.fillText(defiLabel,W/2,sepY+64);
 
-  // Texte du défi — GRAND
-  ctx.font="20px Arial";
+  // Texte du defi
+  ctx.font="32px Arial";
   ctx.fillStyle="rgba(255,255,255,0.92)";
-  wrapText(ctx,v.defi,W/2,sepY+82,cardW-120,32);
+  wrapText(ctx,v.defi,W/2,sepY+116,cardW-100,48);
 
   // Lien en bas
-  ctx.font="bold 20px Arial";
+  ctx.font="bold 28px Arial";
   ctx.fillStyle="rgba(255,255,255,0.6)";
-  ctx.fillText("👉  kingdom-journey.vercel.app",W/2,H-42);
+  ctx.fillText("kingdom-journey.vercel.app",W/2,H-50);
 
   // Afficher la prévisualisation
   var dataURL=canvas.toDataURL("image/png");
