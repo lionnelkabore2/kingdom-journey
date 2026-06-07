@@ -2063,8 +2063,20 @@ function subscribeRoom(roomId){
       }
       if(topic.includes("cev_room_players")){
         loadPlayers().then(function(){
-          if(DEFI.room&&DEFI.room.status==="waiting")renderDefiWaiting();
-          if(DEFI.room&&DEFI.room.status==="playing")renderDefiPlaying();
+          if(DEFI.room&&DEFI.room.status==="waiting"){
+            renderDefiWaiting();
+          }
+          // Si playing : NE PAS appeler renderDefiPlaying (ça remet le timer à zéro !)
+          // Juste mettre à jour les barres de score
+          if(DEFI.room&&DEFI.room.status==="playing"){
+            for(var j=0;j<DEFI.players.length;j++){
+              var pct=Math.min(100,Math.round((DEFI.players[j].score/DEFI_WIN_SCORE)*100));
+              var bar=document.getElementById("score-bar-"+DEFI.players[j].user_id);
+              var lbl=document.getElementById("score-lbl-"+DEFI.players[j].user_id);
+              if(bar)bar.style.width=pct+"%";
+              if(lbl)lbl.textContent=DEFI.players[j].score+"/"+DEFI_WIN_SCORE;
+            }
+          }
         });
       }
       if(topic.includes("cev_room_answers")){
@@ -2282,14 +2294,17 @@ async function answerDefi(choice){
   var qi=DEFI.room.current_q||0;
   var q=DEFI.qs[qi];
   var ok=(q.ans===choice);
+
+  // Le bonus premier : DEFI_FIRST_CORRECT est false seulement si personne n'a encore répondu correctement
   var isFirst=(ok&&!DEFI_FIRST_CORRECT);
   if(isFirst)DEFI_FIRST_CORRECT=true;
 
-  // Points : diff + bonus si premier
+  // Points : diff + 1 bonus si premier
   var pts=ok?(q.diff==="hard"?3:q.diff==="medium"?2:1):0;
-  var total=pts+(isFirst?1:0);
+  var bonus=isFirst?1:0;
+  var total=pts+bonus;
 
-  // Colorer les boutons
+  // Colorer les boutons (le timer continue de tourner, on ne le touche PAS)
   for(var i=0;i<q.opts.length;i++){
     var b=document.getElementById("dob"+i);
     if(b){
@@ -2299,33 +2314,42 @@ async function answerDefi(choice){
     }
   }
 
-  // Feedback sur le timer (ne remplace pas encore le vrai decompte)
-  var el=document.getElementById("defi-timer");
-  if(el&&!DEFI_NEXT_PENDING){
-    el.style.fontSize="11px";
-    el.style.color=ok?"#059669":"#EF4444";
-    el.textContent=ok?(isFirst?"⚡ +"+total+"pts":"✅ +"+pts+"pts"):"❌";
-  }
+  // Feedback : badge flottant qui apparaît et disparaît (n'interfère PAS avec le timer)
+  var fbDiv=document.createElement("div");
+  fbDiv.style.cssText="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:"+(ok?"linear-gradient(135deg,#059669,#047857)":"#EF4444")+";color:#fff;padding:12px 24px;border-radius:16px;font-weight:800;font-size:16px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:transform .2s";
+  fbDiv.textContent=ok?(isFirst?"⚡ +"+total+" pts (1er!)":"✅ +"+pts+" pts"):"❌ Raté";
+  document.body.appendChild(fbDiv);
+  setTimeout(function(){fbDiv.style.transform="translate(-50%,-50%) scale(1)";},10);
+  setTimeout(function(){fbDiv.style.transform="translate(-50%,-50%) scale(0)";setTimeout(function(){if(fbDiv.parentNode)fbDiv.remove();},200);},2000);
 
-  // Banner premier correct
   if(isFirst){
+    // Banner "premier" pour soi-même
     var bann=document.createElement("div");
-    bann.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;padding:8px 18px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3)";
-    bann.textContent="⚡ Tu es le premier ! +1 bonus";
+    bann.style.cssText="position:fixed;top:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;padding:6px 16px;border-radius:20px;font-weight:800;font-size:11px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3)";
+    bann.textContent="⚡ +1 bonus premier !";
     document.body.appendChild(bann);
-    setTimeout(function(){if(bann.parentNode)bann.remove();},2000);
+    setTimeout(function(){if(bann.parentNode)bann.remove();},2500);
   }
 
   if(ok)launchMiniConfetti();
 
-  // Score local
-  if(total>0){
-    for(var pi=0;pi<DEFI.players.length;pi++){
-      if(DEFI.players[pi].user_id===S.user.id){DEFI.players[pi].score+=total;break;}
+  // Mise à jour score local immédiate
+  var myNewScore=0;
+  for(var pi=0;pi<DEFI.players.length;pi++){
+    if(DEFI.players[pi].user_id===S.user.id){
+      DEFI.players[pi].score+=total;
+      myNewScore=DEFI.players[pi].score;
+      // Mettre à jour la barre de score localement
+      var pct=Math.min(100,Math.round((myNewScore/DEFI_WIN_SCORE)*100));
+      var bar=document.getElementById("score-bar-"+S.user.id);
+      var lbl=document.getElementById("score-lbl-"+S.user.id);
+      if(bar)bar.style.width=pct+"%";
+      if(lbl)lbl.textContent=myNewScore+"/"+DEFI_WIN_SCORE;
+      break;
     }
   }
 
-  // Sauvegarder (non bloquant)
+  // Sauvegarder en arrière-plan (sans await = non bloquant)
   fetch(SB_URL+"/rest/v1/cev_room_answers",{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
@@ -2333,14 +2357,15 @@ async function answerDefi(choice){
   });
 
   if(total>0){
-    var myPl=DEFI.players.find(function(p){return p.user_id===S.user.id;})||{score:0};
     fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
       method:"PATCH",
       headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({score:myPl.score})
+      body:JSON.stringify({score:myNewScore})
     });
-    if(myPl.score>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
+    // Victoire ?
+    if(myNewScore>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
       clearInterval(DEFI.countdown);
+      DEFI.countdown=null;
       fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
         method:"PATCH",
         headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
@@ -2350,7 +2375,7 @@ async function answerDefi(choice){
     }
   }
 
-  // Verifier si tout le monde a repondu
+  // Vérifier si tout le monde a répondu (SANS toucher au timer si non)
   checkAllAnswered(qi);
 }
 
