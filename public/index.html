@@ -2261,50 +2261,30 @@ function startQuestionTimer(){
   },1000);
 }
 
-function checkAllAnswered(qi){
-  // Tout le monde a repondu avant la fin : arreter le timer et attendre 2s
+async function checkAllAnswered(qi){
   if(DEFI_NEXT_PENDING)return;
-  if(DEFI_ANSWERED_COUNT<DEFI.players.length)return;
-  if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
-  waitThenNext(qi);
-}
-
-function waitThenNext(qi){
-  if(DEFI_NEXT_PENDING)return;
-  DEFI_NEXT_PENDING=true;
-  // Afficher 2s sur le timer
-  var el=document.getElementById("defi-timer");
-  if(el){el.style.fontSize="16px";el.style.color="var(--orange)";el.textContent="2";}
-  setTimeout(function(){
-    if(el)el.textContent="1";
-    setTimeout(function(){
-      if(DEFI.room&&DEFI.room.host_id===S.user.id){
-        nextDefiQuestion();
-      } else {
-        recheckRoomStatus(qi);
-      }
-    },1000);
-  },1000);
+  try{
+    var r=await fetch(SB_URL+"/rest/v1/cev_room_answers?room_id=eq."+DEFI.room.id+"&q_index=eq."+qi,{
+      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+    });
+    var answers=await r.json()||[];
+    var totalPlayers=DEFI.players.length||DEFI.room.max_players;
+    if(answers.length>=totalPlayers){
+      if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
+      waitThenNext(qi);
+    }
+  }catch(e){}
 }
 
 async function answerDefi(choice){
   if(DEFI.answered)return;
   DEFI.answered=true;
-  DEFI_ANSWERED_COUNT++;
   var qi=DEFI.room.current_q||0;
   var q=DEFI.qs[qi];
   var ok=(q.ans===choice);
-
-  // Le bonus premier : DEFI_FIRST_CORRECT est false seulement si personne n'a encore répondu correctement
-  var isFirst=(ok&&!DEFI_FIRST_CORRECT);
-  if(isFirst)DEFI_FIRST_CORRECT=true;
-
-  // Points : diff + 1 bonus si premier
   var pts=ok?(q.diff==="hard"?3:q.diff==="medium"?2:1):0;
-  var bonus=isFirst?1:0;
-  var total=pts+bonus;
 
-  // Colorer les boutons (le timer continue de tourner, on ne le touche PAS)
+  // Colorer les boutons immédiatement
   for(var i=0;i<q.opts.length;i++){
     var b=document.getElementById("dob"+i);
     if(b){
@@ -2313,59 +2293,65 @@ async function answerDefi(choice){
       else if(i===choice&&!ok)b.classList.add("ng");
     }
   }
-
-  // Feedback : badge flottant qui apparaît et disparaît (n'interfère PAS avec le timer)
-  var fbDiv=document.createElement("div");
-  fbDiv.style.cssText="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:"+(ok?"linear-gradient(135deg,#059669,#047857)":"#EF4444")+";color:#fff;padding:12px 24px;border-radius:16px;font-weight:800;font-size:16px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:transform .2s";
-  fbDiv.textContent=ok?(isFirst?"⚡ +"+total+" pts (1er!)":"✅ +"+pts+" pts"):"❌ Raté";
-  document.body.appendChild(fbDiv);
-  setTimeout(function(){fbDiv.style.transform="translate(-50%,-50%) scale(1)";},10);
-  setTimeout(function(){fbDiv.style.transform="translate(-50%,-50%) scale(0)";setTimeout(function(){if(fbDiv.parentNode)fbDiv.remove();},200);},2000);
-
-  if(isFirst){
-    // Banner "premier" pour soi-même
-    var bann=document.createElement("div");
-    bann.style.cssText="position:fixed;top:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;padding:6px 16px;border-radius:20px;font-weight:800;font-size:11px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3)";
-    bann.textContent="⚡ +1 bonus premier !";
-    document.body.appendChild(bann);
-    setTimeout(function(){if(bann.parentNode)bann.remove();},2500);
-  }
-
   if(ok)launchMiniConfetti();
 
-  // Mise à jour score local immédiate
-  var myNewScore=0;
-  for(var pi=0;pi<DEFI.players.length;pi++){
-    if(DEFI.players[pi].user_id===S.user.id){
-      DEFI.players[pi].score+=total;
-      myNewScore=DEFI.players[pi].score;
-      // Mettre à jour la barre de score localement
-      var pct=Math.min(100,Math.round((myNewScore/DEFI_WIN_SCORE)*100));
-      var bar=document.getElementById("score-bar-"+S.user.id);
-      var lbl=document.getElementById("score-lbl-"+S.user.id);
-      if(bar)bar.style.width=pct+"%";
-      if(lbl)lbl.textContent=myNewScore+"/"+DEFI_WIN_SCORE;
-      break;
+  // Sauvegarder la réponse dans Supabase
+  var isFirst=false;
+  try{
+    await fetch(SB_URL+"/rest/v1/cev_room_answers",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
+      body:JSON.stringify({room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,q_index:qi,answer:choice,is_correct:ok})
+    });
+    // Si bonne réponse : vérifier si on est le PREMIER correct dans Supabase
+    if(ok){
+      var cr=await fetch(SB_URL+"/rest/v1/cev_room_answers?room_id=eq."+DEFI.room.id+"&q_index=eq."+qi+"&is_correct=eq.true&order=answered_at.asc&limit=1",{
+        headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+      });
+      var firsts=await cr.json();
+      isFirst=(firsts&&firsts.length>0&&firsts[0].user_id===S.user.id);
     }
-  }
+  }catch(e){console.log("answer save err",e);}
 
-  // Sauvegarder en arrière-plan (sans await = non bloquant)
-  fetch(SB_URL+"/rest/v1/cev_room_answers",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
-    body:JSON.stringify({room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.prenom,q_index:qi,answer:choice,is_correct:ok})
-  });
+  var total=pts+(isFirst?1:0);
 
+  // Badge flottant — n'interfère PAS avec le timer
+  var fbDiv=document.createElement("div");
+  fbDiv.style.cssText="position:fixed;top:45%;left:50%;transform:translate(-50%,-50%) scale(0);background:"+(ok?"linear-gradient(135deg,#059669,#047857)":"#EF4444")+";color:#fff;padding:14px 28px;border-radius:16px;font-weight:800;font-size:18px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:transform .25s;text-align:center";
+  fbDiv.innerHTML=ok
+    ?(isFirst?"⚡ +"+total+" pts<br><span style='font-size:12px;font-weight:600'>1er bonus +1 !</span>":"✅ +"+pts+" pts")
+    :"❌ Raté";
+  document.body.appendChild(fbDiv);
+  setTimeout(function(){fbDiv.style.transform="translate(-50%,-50%) scale(1)";},10);
+  setTimeout(function(){
+    fbDiv.style.transform="translate(-50%,-50%) scale(0)";
+    setTimeout(function(){if(fbDiv.parentNode)fbDiv.remove();},250);
+  },2500);
+
+  // Mise à jour score local
+  var myNewScore=0;
   if(total>0){
+    for(var pi=0;pi<DEFI.players.length;pi++){
+      if(DEFI.players[pi].user_id===S.user.id){
+        DEFI.players[pi].score+=total;
+        myNewScore=DEFI.players[pi].score;
+        break;
+      }
+    }
+    var pct=Math.min(100,Math.round((myNewScore/DEFI_WIN_SCORE)*100));
+    var bar=document.getElementById("score-bar-"+S.user.id);
+    var lbl=document.getElementById("score-lbl-"+S.user.id);
+    if(bar)bar.style.width=pct+"%";
+    if(lbl)lbl.textContent=myNewScore+"/"+DEFI_WIN_SCORE;
+
     fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
       method:"PATCH",
       headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
       body:JSON.stringify({score:myNewScore})
     });
-    // Victoire ?
+
     if(myNewScore>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
-      clearInterval(DEFI.countdown);
-      DEFI.countdown=null;
+      clearInterval(DEFI.countdown);DEFI.countdown=null;
       fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
         method:"PATCH",
         headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
@@ -2375,9 +2361,10 @@ async function answerDefi(choice){
     }
   }
 
-  // Vérifier si tout le monde a répondu (SANS toucher au timer si non)
+  // Vérifier si tout le monde a répondu
   checkAllAnswered(qi);
 }
+
 
 
 async function recheckRoomStatus(oldQi){
