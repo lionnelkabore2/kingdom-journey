@@ -43,6 +43,7 @@ html,body{min-height:100%;font-family:Nunito,sans-serif;background:var(--cream);
 .amsg{font-size:11px;margin-top:8px;text-align:center;padding:8px;border-radius:8px;display:none}
 .amsg.err{background:var(--redl);color:var(--red);display:block}
 .amsg.ok{background:var(--greenl);color:var(--green);display:block}
+.amsg.info{background:var(--purplel);color:var(--purple);display:block}
 .aswitch{margin-top:12px;text-align:center;font-size:11px;color:rgba(255,255,255,.75)}
 .aswitch span{color:#FFF;cursor:pointer;font-weight:700;text-decoration:underline}
 /* HEADER */
@@ -397,6 +398,13 @@ function t(k){return(T[S.lang]||T.fr)[k]||k;}
 function setLang(lang,btn){S.lang=lang;document.querySelectorAll(".lang-btn").forEach(function(b){b.classList.remove("active");});btn.classList.add("active");applyLangUI();}
 function applyLangUI(){var ids={"h-sub":"subtitle","h-logout":"logout","sl-pts":"pts","sl-quiz":"quiz","sl-streak":"jours","sl-rank":"rang","home-sub":"verse_sub","dc-title":"defi_title","mc-quiz-title":"quiz_title","mc-quiz-sub":"quiz_sub","mc-quiz-lbl":"quiz_lbl","mc-verse-title":"verse_title","mc-verse-lbl":"verse_lbl","mc-cls-title":"cls_title","mc-cls-sub":"cls_sub","mc-cls-lbl":"cls_lbl","tab-easy":"tab_easy","tab-med":"tab_med","tab-hard":"tab_hard","nav-home-lbl":"welcome","nav-quiz-lbl":"quiz_title","nav-verset-lbl":"verse_title","nav-cls-lbl":"cls_title","opt-email-lbl":"email_pw","opt-email-sub":"email_pw_sub","opt-name-lbl":"name_only","opt-name-sub":"name_only_sub","lbl-prenom":"prenom","lbl-email":"email","lbl-pw":"pw","lbl-ville":"ville","lbl-prenom2":"prenom","lbl-ville2":"ville","abtn":"start","ac-title":"join","ql-rest":"rest","mc-verse-sub":"verse_sub2","verse-screen-title":"verse_title","cls-screen-title":"cls_title","quiz-screen-title":"quiz_title"};for(var id in ids){var el=document.getElementById(id);if(el)el.textContent=t(ids[id]);}var sw=document.getElementById("aswitch");if(sw)sw.innerHTML=t(S.mode==="reg"?"already":"no_account")+' <span onclick="toggleLogin()">'+t(S.mode==="reg"?"signin":"register")+"</span>";}
 // ── AUTH ──────────────────────────────────────────────────
+function showMsg(msg,isInfo){
+  var el=document.getElementById("amsg");
+  if(!el)return;
+  el.textContent=msg;
+  el.className="amsg "+(isInfo?"info":"err");
+}
+
 function normPrenom(s){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9 _-]/g,"").trim();}
 
 function setAuthTab(tab){
@@ -451,6 +459,7 @@ async function doRegEmail(){
   var pw=document.getElementById("inp-pw").value;
   var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";
   if(!prenom||!contact||!pw){showMsg(t("err_fields"));return;}
+  showMsg("⏳ Inscription en cours...",true);
   var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
@@ -458,7 +467,7 @@ async function doRegEmail(){
   if(!r.ok){showMsg(r.data.error_description||r.data.msg||"Erreur inscription");return;}
   var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
   if(!uid){showMsg("Erreur: pas d'utilisateur");return;}
-  await createProfile(uid,prenomClean,ville,tok,pseudoClean);
+  createProfile(uid,prenomClean,ville,tok,pseudoClean); // non-bloquant
   await loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean);
 }
 
@@ -467,6 +476,7 @@ async function doRegName(){
   var pseudo=document.getElementById("inp-pseudo2").value.trim()||prenom;
   var ville=document.getElementById("inp-ville2").value.trim()||"Non precisee";
   if(!prenom){showMsg(t("err_fields"));return;}
+  showMsg("⏳ Inscription en cours...",true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
   var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";
@@ -475,7 +485,7 @@ async function doRegName(){
   if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
   var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
   if(!uid){showMsg("Erreur creation");return;}
-  await createProfile(uid,prenomClean,ville,tok,pseudoClean);
+  createProfile(uid,prenomClean,ville,tok,pseudoClean); // non-bloquant
   await loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean);
 }
 
@@ -483,20 +493,22 @@ async function doLogin(){
   var contact=document.getElementById("inp-email-login").value.trim();
   var pw=document.getElementById("inp-pw-login").value;
   if(!contact||!pw){showMsg(t("err_fields"));return;}
+  showMsg("⏳ Connexion en cours...",true);
   var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
   var r=await sbAuth("token?grant_type=password",{email:email,password:pw});
   if(!r.ok){showMsg(t("err_login"));return;}
   var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
   if(!uid){showMsg(t("err_login"));return;}
   var prof=await getProfile(uid,tok);
-  if(!prof){await createProfile(uid,contact.split("@")[0],"Non precisee",tok);prof={prenom:contact.split("@")[0],ville:"Non precisee",score_total:0};}
-  await loginSuccess(uid,prof.prenom,prof.ville,prof.score_total||0,tok);
+  if(!prof){createProfile(uid,contact.split("@")[0],"Non precisee",tok);prof={prenom:contact.split("@")[0],pseudo:contact.split("@")[0],ville:"Non precisee",score_total:0};}
+  await loginSuccess(uid,prof.prenom,prof.ville,prof.score_total||0,tok,prof.pseudo);
 }
 
 async function doLoginQuick(){
   var prenom=document.getElementById("inp-prenom-login").value.trim();
   var ville=document.getElementById("inp-ville-login").value.trim()||"Non precisee";
   if(!prenom){showMsg(t("err_fields"));return;}
+  showMsg("⏳ Connexion en cours...",true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";
   var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";
@@ -504,7 +516,7 @@ async function doLoginQuick(){
   if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
   var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
   if(!uid){showMsg("Erreur");return;}
-  await createProfile(uid,prenomClean,ville,tok);
+  createProfile(uid,prenomClean,ville,tok); // non-bloquant
   await loginSuccess(uid,prenomClean,ville,0,tok);
 }
 async function createProfile(uid,prenom,ville,tok,pseudo){
