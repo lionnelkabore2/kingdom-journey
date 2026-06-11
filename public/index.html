@@ -241,6 +241,20 @@ html,body{
 /* CONFETTI */
 .conf{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:9998;animation:fall linear forwards}
 @keyframes fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+/* TUTORIEL */
+.tuto-card{background:#fff;border-radius:24px;width:100%;max-width:380px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);position:relative}
+.tuto-header{padding:32px 24px 24px;text-align:center}
+.tuto-icon{font-size:56px;margin-bottom:12px}
+.tuto-dots{display:flex;justify-content:center;gap:6px}
+.tuto-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.4);transition:all .2s}
+.tuto-dot.active{background:#fff;width:24px;border-radius:4px}
+.tuto-body{padding:20px 22px 12px}
+.tuto-title{font-family:"Playfair Display",serif;font-size:18px;font-weight:900;color:var(--dark);margin-bottom:10px;text-align:center}
+.tuto-text{font-size:13px;color:var(--gray);line-height:1.7;text-align:left}
+.tuto-footer{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 16px;gap:10px}
+.tuto-btn-main{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:none;border-radius:12px;padding:11px 22px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer;flex:1;box-shadow:0 4px 12px rgba(124,58,237,.3)}
+.tuto-btn-sec{background:#F3F4F6;color:var(--gray);border:none;border-radius:12px;padding:11px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer}
+.tuto-skip{position:absolute;top:12px;right:14px;background:rgba(255,255,255,.25);border:none;color:#fff;font-family:Nunito,sans-serif;font-size:11px;font-weight:700;cursor:pointer;border-radius:20px;padding:4px 10px}
 /* MODE DEFI */
 .defi-card{background:#fff;border-radius:20px;padding:18px;box-shadow:var(--sh);margin-bottom:13px}
 .defi-code{font-family:"Playfair Display",serif;font-size:52px;font-weight:900;text-align:center;background:linear-gradient(135deg,var(--purple),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:8px;margin:10px 0}
@@ -1905,9 +1919,101 @@ var DEFI_TIME=15;
 
 function genCode(){return String(Math.floor(1000+Math.random()*9000));}
 
+// ── TUTORIEL CHALLENGE ────────────────────────────────────
+var TUTO_KEY="cev_tuto_defi_seen";
+
+function hasSeen(){
+  try{return localStorage.getItem(TUTO_KEY)==="1";}catch(e){return false;}
+}
+function markSeen(){
+  try{localStorage.setItem(TUTO_KEY,"1");}catch(e){}
+}
+
+function showTutorial(){
+  var lbl=S.lang==="fr";
+  var slides=[
+    {
+      icon:"⚔️",
+      title:lbl?"Bienvenue dans le Mode Challenge !":"Welcome to Challenge Mode!",
+      text:lbl?"Affrontez d'autres joueurs en temps réel sur des questions bibliques. Le premier à atteindre 20 points remporte la victoire !":"Face other players in real time on Bible questions. First to reach 20 points wins!",
+      color:"linear-gradient(135deg,#7C3AED,#2563EB)"
+    },
+    {
+      icon:"➕",
+      title:lbl?"Créer une salle":"Create a room",
+      text:lbl?"1️⃣ Choisis le nombre de joueurs (2 à 12)\n2️⃣ Clique sur Créer le challenge\n3️⃣ Un code à 4 chiffres est généré\n4️⃣ Partage le code avec tes amis":"1️⃣ Choose number of players (2 to 12)\n2️⃣ Click Create challenge\n3️⃣ A 4-digit code is generated\n4️⃣ Share the code with your friends",
+      color:"linear-gradient(135deg,#059669,#2563EB)"
+    },
+    {
+      icon:"🔑",
+      title:lbl?"Rejoindre une salle":"Join a room",
+      text:lbl?"1️⃣ Demande le code à 4 chiffres à l'hôte\n2️⃣ Entre le code dans le champ prévu\n3️⃣ Clique sur Rejoindre\n4️⃣ Attends que l'hôte démarre la partie":"1️⃣ Ask the host for the 4-digit code\n2️⃣ Enter the code in the field\n3️⃣ Click Join\n4️⃣ Wait for the host to start the game",
+      color:"linear-gradient(135deg,#D97706,#F59E0B)"
+    },
+    {
+      icon:"🏆",
+      title:lbl?"Pendant le challenge":"During the challenge",
+      text:lbl?"⏱️ 15 secondes par question\n✅ Chaque bonne réponse = points selon la difficulté\n⚡ Le PREMIER à trouver gagne +1 point bonus\n🎯 Premier à 20 points = VICTOIRE !":"⏱️ 15 seconds per question\n✅ Each correct answer = points by difficulty\n⚡ FIRST to answer correctly gets +1 bonus point\n🎯 First to 20 points = VICTORY!",
+      color:"linear-gradient(135deg,#7C3AED,#EC4899)"
+    },
+    {
+      icon:"🌟",
+      title:lbl?"Récompenses":"Rewards",
+      text:lbl?"🏅 Le vainqueur reçoit des XP bonus\n💫 XP bonus = nombre de joueurs × 4\n📊 Ton score s'ajoute au classement du jour\n⚔️ Max 10 challenges par jour":"🏅 The winner receives bonus XP\n💫 Bonus XP = number of players × 4\n📊 Your score adds to the daily leaderboard\n⚔️ Max 10 challenges per day",
+      color:"linear-gradient(135deg,#059669,#7C3AED)"
+    }
+  ];
+
+  var current=0;
+
+  function render(){
+    var s=slides[current];
+    var overlay=document.getElementById("tuto-overlay");
+    if(!overlay)return;
+    overlay.innerHTML='<div class="tuto-card">'
+      +'<div class="tuto-header" style="background:'+s.color+'">'
+      +'<div class="tuto-icon">'+s.icon+'</div>'
+      +'<div class="tuto-dots">'
+      +slides.map(function(_,i){return'<div class="tuto-dot'+(i===current?' active':'')+'"></div>';}).join('')
+      +'</div></div>'
+      +'<div class="tuto-body">'
+      +'<h2 class="tuto-title">'+s.title+'</h2>'
+      +'<p class="tuto-text">'+s.text.replace(/\n/g,'<br>')+'</p>'
+      +'</div>'
+      +'<div class="tuto-footer">'
+      +(current>0?'<button class="tuto-btn-sec" onclick="tutoBack()">← '+(lbl?"Retour":"Back")+'</button>':'<div></div>')
+      +(current<slides.length-1
+        ?'<button class="tuto-btn-main" onclick="tutoNext()">Suivant →</button>'
+        :'<button class="tuto-btn-main" onclick="tutoFinish()">'+( lbl?"C\'est parti ! ⚔️":"Let\'s go! ⚔️")+'</button>')
+      +'</div>'
+      +'<button class="tuto-skip" onclick="tutoFinish()">'+(lbl?"Passer":"Skip")+'</button>'
+      +'</div>';
+  }
+
+  window.tutoNext=function(){if(current<slides.length-1){current++;render();}};
+  window.tutoBack=function(){if(current>0){current--;render();}};
+  window.tutoFinish=function(){
+    markSeen();
+    var overlay=document.getElementById("tuto-overlay");
+    if(overlay){overlay.style.opacity="0";setTimeout(function(){overlay.style.display="none";},300);}
+    renderDefiHome();
+  };
+
+  var overlay=document.createElement("div");
+  overlay.id="tuto-overlay";
+  overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;transition:opacity .3s";
+  document.body.appendChild(overlay);
+  render();
+}
+
 function renderDefi(){
   var c=document.getElementById("defi-cont");
   if(!c){console.log("defi-cont not found");return;}
+  // Afficher le tutoriel la première fois
+  if(!hasSeen()&&!DEFI.room){
+    showTutorial();
+    return;
+  }
   if(!DEFI.room){renderDefiHome();return;}
   if(DEFI.room.status==="waiting"){renderDefiWaiting();return;}
   if(DEFI.room.status==="playing"){renderDefiPlaying();return;}
