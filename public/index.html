@@ -279,6 +279,11 @@ html,body{
 </style>
 </head>
 <body>
+<!-- ONBOARDING SLIDES -->
+<div id="onboarding" style="position:fixed;inset:0;z-index:1000;background:linear-gradient(160deg,#7C3AED,#2563EB 50%,#059669);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .4s">
+  <div id="ob-card" style="background:#fff;border-radius:24px;width:100%;max-width:360px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)"></div>
+</div>
+
 <div id="ao">
   <div class="at">✝️ Quiz Biblique C.E.V</div>
   <div class="asub">Christ Est Vivant · Bible Louis Segond 1910</div>
@@ -2723,6 +2728,82 @@ function shareDefiResult(){
 
 // Mettre à jour goTo pour inclure defi — fusionné dans la fonction principale
 
+// ── ONBOARDING ─────────────────────────────────────────────
+var OB_KEY="cev_onboarding_seen";
+function obHasSeen(){try{return localStorage.getItem(OB_KEY)==="1";}catch(e){return false;}}
+function obMarkSeen(){try{localStorage.setItem(OB_KEY,"1");}catch(e){}}
+
+function showOnboarding(){
+  var fr=true; // sera mis à jour avec S.lang
+  var slides=[
+    {bg:"linear-gradient(135deg,#7C3AED,#2563EB)",logo:true,
+     title:"Bienvenue sur Quiz Biblique C.E.V !",
+     text:"Apprends la Parole de Dieu en t'amusant !\nChrist Est Vivant · La Foi · L'Espérance · L'Amour",
+     badge:"100% Gratuit · Zéro Pub 🎉"},
+    {bg:"linear-gradient(135deg,#059669,#2563EB)",icon:"📖",
+     title:"Quiz Biblique",
+     text:"200+ questions par niveau\n🌱 Facile · 🔥 Moyen · ⚡ Difficile\nGagne des points et monte en niveau !\nDe Apprenti jusqu'à Héros Biblique 👑",
+     badge:"20 questions / jour"},
+    {bg:"linear-gradient(135deg,#D97706,#F59E0B)",icon:"⚔️",
+     title:"Mode Challenge",
+     text:"Défie tes amis en temps réel !\n2 à 12 joueurs simultanément\nTimer 15 secondes par question\nLe premier à 20 points gagne !",
+     badge:"Multijoueur temps réel 🔥"},
+    {bg:"linear-gradient(135deg,#7C3AED,#EC4899)",icon:"🏆",
+     title:"Classement & Progression",
+     text:"📊 Classement Jour · Semaine · Mois\n⭐ Système de niveaux avec XP\n🌟 10 niveaux à débloquer\n📅 Verset du jour chaque matin",
+     badge:"Progression sauvegardée 💾"},
+    {bg:"linear-gradient(135deg,#059669,#7C3AED)",icon:"📱",
+     title:"Comment s'inscrire",
+     text:"C'est simple et rapide !\n\n🔐 Compte permanent :\nPrénom + Pseudo + Email/Tél + Mot de passe\n\n⚡ Connexion rapide :\nJuste Prénom + Ville · C'est tout ! 🙏",
+     badge:"Inscription en 10 secondes ⚡"},
+    {bg:"linear-gradient(135deg,#1F2937,#374151)",icon:"😇",
+     title:"Une dernière chose...",
+     text:"Ce quiz est basé sur la Bible Louis Segond 1910.\n\nLes réponses sont dans la Parole de Dieu...\npas sur Google ! 😅\n\nAlors promis... on ne triche pas hein ! 🫵😂\n\nQue le meilleur connaisseur de la Bible gagne ! 🏆",
+     badge:"Que Dieu soit avec toi ! 🙏"}
+  ];
+
+  var cur=0;
+
+  function renderOb(){
+    var s=slides[cur];
+    var card=document.getElementById("ob-card");
+    var ob=document.getElementById("onboarding");
+    if(ob)ob.style.background=s.bg;
+    if(!card)return;
+    var dots=slides.map(function(_,i){
+      return '<div style="width:'+(i===cur?'20':'7')+'px;height:7px;border-radius:4px;background:'+(i===cur?'#fff':'rgba(255,255,255,.35)')+';transition:all .3s"></div>';
+    }).join('');
+    var iconH=s.logo
+      ?'<img src="/icons/icon-192x192.png" onerror="this.style.display=\'none\'" style="width:80px;height:80px;border-radius:50%;margin-bottom:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)">'
+      :'<div style="font-size:54px;margin-bottom:8px">'+s.icon+'</div>';
+    var isLast=(cur===slides.length-1);
+    var backBtn=cur>0?'<button onclick="obPrev()" style="background:#F3F4F6;color:#6B7280;border:none;border-radius:12px;padding:10px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer">← Retour</button>':'<div></div>';
+    var nextBtn=isLast
+      ?'<button onclick="obFinish()" style="flex:1;background:linear-gradient(135deg,#059669,#7C3AED);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer">Je m\'inscris ! ✝️</button>'
+      :'<button onclick="obNext()" style="flex:1;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(124,58,237,.3)">Suivant →</button>';
+    card.innerHTML=
+      '<div style="background:'+s.bg+';padding:22px 20px 16px;text-align:center">'+iconH
+      +'<div style="display:flex;justify-content:center;gap:5px;margin-top:6px">'+dots+'</div></div>'
+      +'<div style="padding:16px 20px 6px">'
+      +'<h2 style="font-family:Playfair Display,serif;font-size:17px;font-weight:900;color:#1F2937;margin-bottom:8px;text-align:center">'+s.title+'</h2>'
+      +'<p style="font-size:12px;color:#6B7280;line-height:1.7;white-space:pre-line">'+s.text+'</p>'
+      +(s.badge?'<div style="margin-top:10px;text-align:center"><span style="background:linear-gradient(135deg,#EDE9FE,#DBEAFE);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:800;color:#7C3AED">'+s.badge+'</span></div>':'')
+      +'</div>'
+      +'<div style="display:flex;gap:8px;padding:10px 20px 14px;align-items:center">'+backBtn+nextBtn+'</div>'
+      +(!isLast?'<div style="text-align:center;padding-bottom:12px"><button onclick="obFinish()" style="background:none;border:none;color:#9CA3AF;font-family:Nunito,sans-serif;font-size:11px;cursor:pointer;text-decoration:underline">Passer l\'intro</button></div>':'');
+  }
+
+  window.obNext=function(){if(cur<slides.length-1){cur++;renderOb();}};
+  window.obPrev=function(){if(cur>0){cur--;renderOb();}};
+  window.obFinish=function(){
+    obMarkSeen();
+    var ob=document.getElementById("onboarding");
+    if(ob){ob.style.opacity="0";setTimeout(function(){ob.style.display="none";},400);}
+  };
+
+  renderOb();
+}
+
 window.onload=function(){
   applyLangUI();
   // Écouter les messages du Service Worker (clic sur notification)
@@ -2749,10 +2830,24 @@ window.onload=function(){
         S.token=d.token;
         S.score=d.day===today?(d.score||0):0;
         document.getElementById("ao").classList.add("h");
+        // Cacher l'onboarding si déjà connecté
+        var ob=document.getElementById("onboarding");
+        if(ob)ob.style.display="none";
         initApp();
+      } else {
+        // Pas connecté — montrer onboarding si première visite
+        if(!obHasSeen())showOnboarding();
+        else document.getElementById("onboarding").style.display="none";
       }
+    } else {
+      // Jamais connecté — montrer onboarding
+      if(!obHasSeen())showOnboarding();
+      else document.getElementById("onboarding").style.display="none";
     }
-  }catch(e){}
+  }catch(e){
+    if(!obHasSeen())showOnboarding();
+    else document.getElementById("onboarding").style.display="none";
+  }
 };
 </script>
 </body>
