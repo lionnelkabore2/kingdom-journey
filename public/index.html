@@ -396,7 +396,7 @@ html,body{
       <div class="mc f" onclick="goTo('defi')"><span class="mico">⚔️</span><div class="mti">Mode Challenge</div><div class="mde">2 à 12 joueurs · Temps réel</div><span class="mb" style="background:var(--purple);color:#fff">Challenger →</span></div>
       <div class="mc f" onclick="goTo('verset')" style="border-color:var(--blue);background:linear-gradient(145deg,var(--bluel),#EFF6FF)"><span class="mico">🌟</span><div class="mti" id="mc-verse-title">Verset du Jour</div><div class="mde" id="mc-verse-sub">LS 1910 · Méditation</div><span class="mb" style="background:var(--blue);color:#fff" id="mc-verse-lbl">Lire →</span></div>
       <div class="mc" style="border-color:#7C3AED;background:linear-gradient(135deg,#7C3AED,#2563EB);cursor:default"><span class="mico">📅</span><div class="mti" id="dc-title" style="color:#fff">Défi du jour</div><div class="mde" id="hdt" style="color:rgba(255,255,255,.85);line-height:1.4">Chargement...</div></div>
-      <div class="mc cl" onclick="goTo('classement')"><span style="font-size:36px">🏆</span><div><div class="mti" id="mc-cls-title">Classement</div><div class="mde" id="mc-cls-sub">Défie tes amis en temps réel</div><span class="mb" id="mc-cls-lbl">Voir →</span></div></div>
+      <div class="mc cl" onclick="goTo('bible')"><span style="font-size:36px">📅</span><div><div class="mti">Lire ma Bible en 1 an</div><div class="mde" style="color:rgba(255,255,255,.75)">Plan de lecture annuel complet</div><span class="mb">Lire →</span></div></div>
     </div>
   </div>
 
@@ -421,12 +421,17 @@ html,body{
     <div id="defi-cont"></div>
   </div>
 
+  <div class="scr" id="bible-screen">
+    <div class="stit">📅 Lire ma Bible en 1 an</div>
+    <div id="bible-cont"></div>
+  </div>
+
   <nav class="bnav">
-    <button class="ni active" id="nav-home" onclick="goTo('home')"><span class="nic">🏠</span><span class="nil" id="nav-home-lbl">Accueil</span></button>
-    <button class="ni" id="nav-quiz" onclick="goTo('quiz')"><span class="nic">📖</span><span class="nil" id="nav-quiz-lbl">Quiz</span></button>
+    <button class="ni active" id="nav-home" onclick="goTo('home')"><span class="nic">🏠</span><span class="nil">Accueil</span></button>
+    <button class="ni" id="nav-quiz" onclick="goTo('quiz')"><span class="nic">📖</span><span class="nil">Quiz</span></button>
     <button class="ni" id="nav-defi" onclick="goTo('defi')"><span class="nic">⚔️</span><span class="nil">Challenge</span></button>
-    <button class="ni" id="nav-verset" onclick="goTo('verset')"><span class="nic">🌟</span><span class="nil" id="nav-verset-lbl">Verset</span></button>
-    <button class="ni" id="nav-classement" onclick="goTo('classement')"><span class="nic">🏆</span><span class="nil" id="nav-cls-lbl">Classement</span></button>
+    <button class="ni" id="nav-bible" onclick="goTo('bible')"><span class="nic">📅</span><span class="nil">Bible</span></button>
+    <button class="ni" id="nav-classement" onclick="goTo('classement')"><span class="nic">🏆</span><span class="nil">Classement</span></button>
   </nav>
 </div>
 <script>
@@ -1275,19 +1280,26 @@ function speakSeq(parts,idx){
   if(!AUDIO.on||!window.speechSynthesis)return;
   if(AUDIO.cancel)return;
   if(idx>=parts.length)return;
+  // Vérifier qu'on est toujours sur le quiz avant chaque partie
+  var quizScr=document.getElementById("quiz-screen");
+  if(!quizScr||!quizScr.classList.contains("active")){AUDIO.cancel=true;window.speechSynthesis.cancel();return;}
   var u=new SpeechSynthesisUtterance(parts[idx].text);
   u.lang=S.lang==="en"?"en-US":"fr-FR";
   u.rate=parts[idx].rate||0.88;
-  u.pitch=parts[idx].pitch||1;
+  u.pitch=parts[idx].pitch||1.05;
   u.volume=1;
   var voices=window.speechSynthesis.getVoices();
   var langCode=S.lang==="en"?"en":"fr";
-  var v=voices.find(function(v){return v.lang.startsWith(langCode)&&v.localService;})
+  var v=voices.find(function(v){return v.lang.startsWith(langCode)&&/female|femme|amelie|marie|julie|chloe/i.test(v.name)&&v.localService;})
+       ||voices.find(function(v){return v.lang.startsWith(langCode)&&v.localService;})
        ||voices.find(function(v){return v.lang.startsWith(langCode);});
   if(v)u.voice=v;
   u.onend=function(){
+    if(AUDIO.cancel)return;
+    var quizActive=document.getElementById("quiz-screen");
+    if(!quizActive||!quizActive.classList.contains("active")){AUDIO.cancel=true;return;}
     var pause=parts[idx].pause||0;
-    if(pause>0){setTimeout(function(){speakSeq(parts,idx+1);},pause);}
+    if(pause>0){setTimeout(function(){if(!AUDIO.cancel)speakSeq(parts,idx+1);},pause);}
     else{speakSeq(parts,idx+1);}
   };
   window.speechSynthesis.speak(u);
@@ -1296,63 +1308,57 @@ function speakSeq(parts,idx){
 function readQuestion(){
   if(!AUDIO.on)return;
   var q=S.tq.mixed[S.qi];if(!q)return;
+  var quizScr=document.getElementById("quiz-screen");
+  if(!quizScr||!quizScr.classList.contains("active"))return;
   AUDIO.cancel=false;
+  window.speechSynthesis.cancel();
   var qtext=S.lang==="en"&&q.qe?q.qe:q.q;
-  // Formater la référence pour l'intro
-  var refSpoken=formatRefForSpeech(q.ref);
-  var intro=S.lang==="fr"?"Question "+( S.qi+1)+". "+refSpoken+". ":"Question "+(S.qi+1)+". "+refSpoken+". ";
-  var parts=[{text:intro+qtext,rate:0.85,pitch:1.1,pause:500}];
+  // NE PAS lire le verset — juste la question et les options
+  var parts=[
+    {text:(S.lang==="fr"?"Question "+(S.qi+1)+" sur 20. ":"Question "+(S.qi+1)+" of 20. "),rate:0.93,pitch:1.15,pause:280},
+    {text:qtext,rate:0.85,pitch:1.0,pause:500}
+  ];
   var letters=["A","B","C","D"];
+  var pitches=[1.02,1.0,0.98,0.96];
+  var rates=[0.88,0.87,0.86,0.85];
   for(var i=0;i<q.opts.length;i++){
     var ot=q.opts[i];
     if(ot.indexOf(" / ")>=0){ot=S.lang==="en"?ot.split(" / ")[1]:ot.split(" / ")[0];}
-    parts.push({text:letters[i]+". "+ot,rate:0.9,pitch:0.95,pause:200});
+    parts.push({text:letters[i]+". "+ot,rate:rates[i],pitch:pitches[i],pause:200});
   }
-  window.speechSynthesis.cancel();
   speakSeq(parts,0);
-}
-
-function formatRefForSpeech(text){
-  var t=text;
-  if(S.lang==="fr"){
-    t=t.replace(/\b1\s+(Rois|Samuel|Corinthiens|Chroniques|Timothée|Pierre|Jean|Thessaloniciens)/g,"un $1");
-    t=t.replace(/\b2\s+(Rois|Samuel|Corinthiens|Chroniques|Timothée|Pierre|Jean|Thessaloniciens)/g,"deux $1");
-    t=t.replace(/\b3\s+(Jean)/g,"trois $1");
-    t=t.replace(/(\d+):(\d+)/g,"$1 verset $2");
-    t=t.replace(/\s*—\s*/g,". ");
-    t=t.replace(/\s+/g," ").trim();
-  } else {
-    t=t.replace(/\b1\s+(Kings|Samuel|Corinthians|Chronicles|Timothy|Peter|John|Thessalonians)/g,"First $1");
-    t=t.replace(/\b2\s+(Kings|Samuel|Corinthians|Chronicles|Timothy|Peter|John|Thessalonians)/g,"Second $1");
-    t=t.replace(/\b3\s+(John)/g,"Third $1");
-    t=t.replace(/(\d+):(\d+)/g,"$1 verse $2");
-    t=t.replace(/\s*—\s*/g,". ");
-    t=t.replace(/\s+/g," ").trim();
-  }
-  return t;
 }
 
 function readFeedback(ok,correctTxt,verse){
   if(!AUDIO.on)return;
+  var quizScr=document.getElementById("quiz-screen");
+  if(!quizScr||!quizScr.classList.contains("active"))return;
   AUDIO.cancel=false;
   window.speechSynthesis.cancel();
   var parts=[];
   if(ok){
-    parts.push({text:S.lang==="fr"?"Correct !":"Correct!",rate:0.9,pitch:1.3,pause:300});
-    parts.push({text:S.lang==="fr"?"Bien joué !":"Well done!",rate:0.9,pitch:1.1,pause:600});
+    // Varier les encouragements pour paraître plus humain
+    var encouragements=S.lang==="fr"
+      ?["Excellent !", "Très bien !", "Bravo !", "Parfait !"]
+      :["Excellent!", "Well done!", "That's right!", "Perfect!"];
+    var pick=encouragements[Math.floor(Math.random()*encouragements.length)];
+    parts.push({text:pick,rate:0.95,pitch:1.3,pause:160});
+    parts.push({text:S.lang==="fr"?"Bonne réponse.":"Correct answer.",rate:0.88,pitch:1.08,pause:420});
   } else {
-    parts.push({text:S.lang==="fr"?"Incorrect.":"Wrong.",rate:0.85,pitch:0.9,pause:300});
-    parts.push({text:(S.lang==="fr"?"La bonne réponse est : ":"The correct answer is: ")+correctTxt,rate:0.88,pitch:1,pause:600});
+    parts.push({text:S.lang==="fr"?"Pas tout à fait...":"Not quite...",rate:0.88,pitch:0.92,pause:200});
+    parts.push({text:(S.lang==="fr"?"La bonne réponse était : ":"The correct answer was: ")+correctTxt+". ",rate:0.86,pitch:1.0,pause:380});
   }
-  // Verset nettoyé et formaté pour la lecture
-  var verseText=verse.split("—")[0].trim().replace(/"/g,"").trim();
-  verseText=formatRefForSpeech(verseText);
-  if(verseText.length>10){
-    parts.push({text:S.lang==="fr"?"La Bible dit : ":"The Bible says: ",rate:0.85,pitch:1,pause:100});
-    parts.push({text:verseText,rate:0.82,pitch:1.05,pause:0});
+  // Lire le verset seulement APRÈS la réponse (jamais avant)
+  var verseText=verse?verse.split("—")[0].trim().replace(/"/g,"").trim():"";
+  if(verseText&&verseText.length>10){
+    verseText=formatRefForSpeech(verseText);
+    parts.push({text:S.lang==="fr"?"La Parole de Dieu dit : ":"God's Word says: ",rate:0.84,pitch:1.02,pause:110});
+    parts.push({text:verseText,rate:0.79,pitch:1.04,pause:0});
   }
   speakSeq(parts,0);
 }
+
+
 
 function readResult(pct,msg){
   if(!AUDIO.on)return;
@@ -1867,11 +1873,14 @@ function goTo(s){
   var scr=document.getElementById(s+"-screen");
   if(scr)scr.classList.add("active");
   var n=document.getElementById("nav-"+s);if(n)n.classList.add("active");
+  // Arrêter l'audio si on quitte le quiz
+  if(s!=="quiz")stopSpeak();
   if(s==="quiz")renderQuiz();
   if(s==="verset")renderVerset();
   if(s==="classement")renderCls();
   if(s==="defi")renderDefi();
-  // Sauvegarder l'écran actif (sauf auth)
+  if(s==="bible")renderBible();
+  // Sauvegarder l'écran actif
   try{localStorage.setItem("cev_screen",s);}catch(e){}
 }
 
@@ -2728,7 +2737,195 @@ function shareDefiResult(){
 
 // Mettre à jour goTo pour inclure defi — fusionné dans la fonction principale
 
-// ── ONBOARDING ─────────────────────────────────────────────
+// ── BIBLE EN 1 AN ─────────────────────────────────────────
+var BIBLE_PLAN=(function(){
+  var p=[];
+  var at_books=[
+    ["Genèse",50,2],["Exode",40,2],["Lévitique",27,2],["Nombres",36,2],["Deutéronome",34,2],
+    ["Josué",24,2],["Juges",21,2],["Ruth",4,2],["1 Samuel",31,2],["2 Samuel",24,2],
+    ["1 Rois",22,2],["2 Rois",25,2],["1 Chroniques",29,2],["2 Chroniques",36,2],
+    ["Esdras",10,2],["Néhémie",13,2],["Esther",10,2],["Job",42,2],
+    ["Ecclésiaste",12,2],["Cantique",8,2],["Ésaïe",66,2],["Jérémie",52,2],
+    ["Lamentations",5,2],["Ézéchiel",48,2],["Daniel",12,2],["Osée",14,2],
+    ["Joël",3,2],["Amos",9,2],["Abdias",1,1],["Jonas",4,2],["Michée",7,2],
+    ["Nahum",3,2],["Habacuc",3,2],["Sophonie",3,2],["Aggée",2,1],
+    ["Zacharie",14,2],["Malachie",4,2]
+  ];
+  var nt_books=[
+    ["Matthieu",28],["Marc",16],["Luc",24],["Jean",21],["Actes",28],
+    ["Romains",16],["1 Corinthiens",16],["2 Corinthiens",13],["Galates",6],
+    ["Éphésiens",6],["Philippiens",4],["Colossiens",4],["1 Thessaloniciens",5],
+    ["2 Thessaloniciens",3],["1 Timothée",6],["2 Timothée",4],["Tite",3],
+    ["Philémon",1],["Hébreux",13],["Jacques",5],["1 Pierre",5],["2 Pierre",3],
+    ["1 Jean",5],["2 Jean",1],["3 Jean",1],["Jude",1],["Apocalypse",22]
+  ];
+  // Aplatir chapitres AT
+  var at_chaps=[];
+  for(var i=0;i<at_books.length;i++){
+    var book=at_books[i][0],chaps=at_books[i][1],step=at_books[i][2];
+    for(var c=1;c<=chaps;c+=step){
+      var end=Math.min(c+step-1,chaps);
+      at_chaps.push(c===end?book+" "+c:book+" "+c+"-"+end);
+    }
+  }
+  // Aplatir NT
+  var nt_chaps=[];
+  for(var i=0;i<nt_books.length;i++){
+    var book=nt_books[i][0],chaps=nt_books[i][1];
+    for(var c=1;c<=chaps;c++){nt_chaps.push(book+" "+c);}
+  }
+  // Psaumes 1-150 + Proverbes 1-31
+  var ps_chaps=[];
+  for(var i=1;i<=150;i++)ps_chaps.push("Psaume "+i);
+  for(var i=1;i<=31;i++)ps_chaps.push("Proverbes "+i);
+
+  // Construire 365 jours
+  var at_i=0,nt_i=0,ps_i=0;
+  for(var day=0;day<365;day++){
+    var entry={};
+    entry.at1=at_i<at_chaps.length?at_chaps[at_i++]:null;
+    entry.at2=at_i<at_chaps.length?at_chaps[at_i++]:null;
+    entry.ps=ps_i<ps_chaps.length?ps_chaps[ps_i++]:null;
+    entry.nt=nt_i<nt_chaps.length?nt_chaps[nt_i++]:null;
+    p.push(entry);
+  }
+  return p;
+})();
+
+function getBibleKey(){return"cev_bible_"+(S.user?S.user.id:"anon");}
+function getBibleRead(){try{var r=localStorage.getItem(getBibleKey());return r?JSON.parse(r):{at:[],ps:[],nt:[]};}catch(e){return{at:[],ps:[],nt:[]};}}
+function saveBibleRead(r){try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}}
+
+function getBibleStartKey(){return"cev_bible_start_"+(S.user?S.user.id:"anon");}
+function getBibleStartDay(){try{var s=localStorage.getItem(getBibleStartKey());return s?parseInt(s):null;}catch(e){return null;}}
+function setBibleStartDay(d){try{localStorage.setItem(getBibleStartKey(),String(d));}catch(e){}}
+
+function getDayOfYear(){
+  var now=new Date();
+  var start=new Date(now.getFullYear(),0,1);
+  return Math.floor((now-start)/86400000); // 0-indexed
+}
+
+function getBibleStatus(read,startDay,today){
+  // Calculer le nombre de jours attendus depuis le début
+  var daysSinceStart=today-startDay;
+  if(daysSinceStart<0)daysSinceStart=0;
+  var expectedChaps=(daysSinceStart+1)*4; // 4 sections/jour
+  var doneChaps=read.at.length+read.ps.length+read.nt.length;
+  var diff=doneChaps-expectedChaps;
+  if(diff>=0)return{color:"#059669",bg:"#ECFDF5",border:"#059669",label:"✅ En avance ou à jour",emoji:"🟢"};
+  if(diff>=-8)return{color:"#D97706",bg:"#FFFBEB",border:"#F59E0B",label:"⚠️ Légèrement en retard",emoji:"🟡"};
+  return{color:"#DC2626",bg:"#FEF2F2",border:"#EF4444",label:"🔴 En retard — Courage !",emoji:"🔴"};
+}
+
+function toggleBibleChap(section,chap){
+  var r=getBibleRead();
+  if(!Array.isArray(r[section]))r[section]=[];
+  var idx=r[section].indexOf(chap);
+  if(idx>-1){r[section].splice(idx,1);}
+  else{r[section].push(chap);}
+  saveBibleRead(r);
+  renderBible();
+}
+
+function startBible(){
+  setBibleStartDay(getDayOfYear());
+  renderBible();
+}
+
+function renderBible(){
+  var c=document.getElementById("bible-cont");if(!c)return;
+  var startDay=getBibleStartDay();
+
+  if(startDay===null){
+    // Page d'accueil du plan
+    c.innerHTML=
+      '<div style="background:linear-gradient(135deg,#7C3AED,#2563EB);border-radius:16px;padding:20px;text-align:center;margin-bottom:13px;color:#fff">'
+      +'<div style="font-size:44px;margin-bottom:8px">📖</div>'
+      +'<h2 style="font-family:Playfair Display,serif;font-size:19px;margin-bottom:8px">Lire ma Bible en 1 an</h2>'
+      +'<p style="font-size:11px;color:rgba(255,255,255,.85);line-height:1.7">Chaque jour :\n📜 2 chapitres Ancien Testament\n📖 1 Psaume ou Proverbe\n✝️ 1 chapitre Nouveau Testament</p>'
+      +'<div style="margin-top:10px;background:rgba(255,255,255,.2);border-radius:10px;padding:6px 12px;font-size:10px;font-weight:700">~15 minutes de lecture par jour</div>'
+      +'</div>'
+      +'<button onclick="startBible()" style="width:100%;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:14px;padding:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 15px rgba(124,58,237,.3)">✝️ Commencer le plan aujourd\'hui !</button>';
+    return;
+  }
+
+  var today=getDayOfYear();
+  var read=getBibleRead();
+  var status=getBibleStatus(read,startDay,today);
+  var done=read.at.length+read.ps.length+read.nt.length;
+  var total=365*4;
+  var pct=Math.min(100,Math.round((done/total)*100));
+
+  // En-tête statut
+  var h='<div style="background:'+status.bg+';border:2px solid '+status.border+';border-radius:14px;padding:12px 14px;margin-bottom:10px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+    +'<span style="font-weight:800;font-size:12px;color:'+status.color+'">'+status.label+'</span>'
+    +'<span style="font-size:10px;font-weight:700;color:'+status.color+'">'+pct+'%</span>'
+    +'</div>'
+    +'<div style="height:7px;background:rgba(0,0,0,.1);border-radius:4px;overflow:hidden">'
+    +'<div style="height:100%;width:'+pct+'%;background:'+status.color+';border-radius:4px;transition:width .6s"></div>'
+    +'</div>'
+    +'<div style="font-size:9px;color:'+status.color+';margin-top:3px">'+done+' chapitres lus sur '+total+'</div>'
+    +'</div>';
+
+  // Trouver les prochains chapitres à lire pour chaque section
+  function nextChap(allChaps, readArr){
+    for(var i=0;i<allChaps.length;i++){
+      if(readArr.indexOf(allChaps[i])===-1)return{chap:allChaps[i],idx:i};
+    }
+    return null;
+  }
+
+  var allAt=[],allPs=[],allNt=[];
+  for(var i=0;i<BIBLE_PLAN.length;i++){
+    if(BIBLE_PLAN[i].at1)allAt.push(BIBLE_PLAN[i].at1);
+    if(BIBLE_PLAN[i].at2)allAt.push(BIBLE_PLAN[i].at2);
+    if(BIBLE_PLAN[i].ps)allPs.push(BIBLE_PLAN[i].ps);
+    if(BIBLE_PLAN[i].nt)allNt.push(BIBLE_PLAN[i].nt);
+  }
+
+  function chapCard(section,label,emoji,color,allChaps,readArr){
+    var next=nextChap(allChaps,readArr);
+    if(!next)return'<div style="background:#F0FDF4;border-radius:14px;padding:12px;margin-bottom:8px;text-align:center;border:2px solid #059669"><div style="font-size:20px">🎉</div><div style="font-weight:800;font-size:11px;color:#059669">'+label+' terminé !</div></div>';
+
+    var chap=next.chap;
+    var isRead=(readArr.indexOf(chap)>-1);
+    var done2=readArr.length;
+    var pct2=Math.min(100,Math.round((done2/allChaps.length)*100));
+
+    return'<div style="background:#fff;border-radius:14px;padding:12px 13px;margin-bottom:8px;box-shadow:var(--sh);border-left:4px solid '+color+'">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">'
+      +'<div style="font-size:9px;font-weight:800;color:'+color+';text-transform:uppercase;letter-spacing:.4px">'+emoji+' '+label+'</div>'
+      +'<div style="font-size:9px;color:#6B7280">'+done2+'/'+allChaps.length+'</div>'
+      +'</div>'
+      +'<div style="height:4px;background:#E5E7EB;border-radius:4px;margin-bottom:8px;overflow:hidden"><div style="height:100%;width:'+pct2+'%;background:'+color+';border-radius:4px"></div></div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between">'
+      +'<div style="font-weight:700;font-size:14px;color:#1F2937">'+chap+'</div>'
+      +'<button onclick="toggleBibleChap(\''+section+'\',\''+chap.replace(/'/g,"\\'")+'\')" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+color+","+color+"CC")+';color:#fff;border:none;border-radius:10px;padding:7px 14px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer">'
+      +(isRead?"✅ Lu":"Marquer lu")+'</button>'
+      +'</div>'
+      +'</div>';
+  }
+
+  h+=chapCard("at","Ancien Testament","📜","#7C3AED",allAt,read.at);
+  h+=chapCard("ps","Psaume / Proverbe","📖","#D97706",allPs,read.ps);
+  h+=chapCard("nt","Nouveau Testament","✝️","#2563EB",allNt,read.nt);
+
+  // Historique récent
+  if(read.at.length+read.ps.length+read.nt.length>0){
+    var recent=read.at.slice(-3).concat(read.ps.slice(-2)).concat(read.nt.slice(-2));
+    h+='<div style="background:#F9FAFB;border-radius:12px;padding:10px 12px;margin-top:4px">'
+      +'<div style="font-size:9px;font-weight:800;color:#6B7280;text-transform:uppercase;margin-bottom:6px">📚 Récemment lu</div>';
+    for(var i=recent.length-1;i>=0;i--){
+      h+='<div style="font-size:11px;color:#374151;padding:3px 0;border-bottom:1px solid #E5E7EB">✓ '+recent[i]+'</div>';
+    }
+    h+='</div>';
+  }
+
+  c.innerHTML=h;
+}
+
 var OB_KEY="cev_onboarding_seen";
 function obHasSeen(){try{return localStorage.getItem(OB_KEY)==="1";}catch(e){return false;}}
 function obMarkSeen(){try{localStorage.setItem(OB_KEY,"1");}catch(e){}}
