@@ -282,7 +282,7 @@ html,body{
 </head>
 <body>
 <!-- ONBOARDING SLIDES -->
-<div id="onboarding" style="position:fixed;inset:0;z-index:1000;background:linear-gradient(160deg,#7C3AED,#2563EB 50%,#059669);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .4s">
+<div id="onboarding" style="position:fixed;inset:0;z-index:1000;background:linear-gradient(160deg,#7C3AED,#2563EB 50%,#059669);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .4s">
   <div id="ob-card" style="background:#fff;border-radius:24px;width:100%;max-width:360px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)"></div>
 </div>
 
@@ -491,9 +491,15 @@ function normPrenom(s){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").
 
 // ── NAVIGATION ENTRE ÉTAPES AUTH ──────────────────────────
 function goStep(stepId){
-  document.querySelectorAll(".auth-step").forEach(function(e){e.style.display="none";});
-  var el=document.getElementById(stepId);
-  if(el)el.style.display="block";
+  // Cacher tous les steps
+  var steps=["step-lang","step-auth-choice","step-form"];
+  for(var i=0;i<steps.length;i++){
+    var el=document.getElementById(steps[i]);
+    if(el)el.style.display="none";
+  }
+  // Afficher uniquement le step cible
+  var target=document.getElementById(stepId);
+  if(target)target.style.display="block";
 }
 
 function chooseLang(lang){
@@ -3038,7 +3044,7 @@ function showOnboarding(onDone){
     var s=slides[cur];
     var card=document.getElementById("ob-card");
     var ob=document.getElementById("onboarding");
-    if(ob)ob.style.background=s.bg;
+    if(ob){ob.style.display="flex";ob.style.opacity="1";}
     if(!card)return;
     var dots=slides.map(function(_,i){
       return '<div style="width:'+(i===cur?'20':'7')+'px;height:7px;border-radius:4px;background:'+(i===cur?'#fff':'rgba(255,255,255,.35)')+';transition:all .3s"></div>';
