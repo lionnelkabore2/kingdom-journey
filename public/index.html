@@ -289,14 +289,30 @@ html,body{
 <div id="ao">
   <!-- ÉTAPE 1 : CHOIX DE LANGUE -->
   <div id="step-lang" class="auth-step">
-    <div style="text-align:center;padding:30px 20px 20px">
-      <img src="/icons/icon-192x192.png" onerror="this.style.display='none'" style="width:90px;height:90px;border-radius:50%;margin-bottom:14px;box-shadow:0 6px 24px rgba(124,58,237,.3)">
-      <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:var(--dark);margin-bottom:4px">Quiz Biblique C.E.V</div>
-      <div style="font-size:11px;color:var(--gray);margin-bottom:24px">Christ Est Vivant · La Foi · L'Espérance · L'Amour</div>
-      <div style="font-size:13px;font-weight:700;color:var(--dark);margin-bottom:14px">🌍 Choisissez votre langue</div>
-      <div style="display:flex;gap:10px">
-        <button onclick="chooseLang('fr')" style="flex:1;padding:14px;border:2px solid var(--purple);border-radius:14px;background:linear-gradient(135deg,var(--purplel),#EDE9FE);font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;color:var(--purple)">🇫🇷 Français</button>
-        <button onclick="chooseLang('en')" style="flex:1;padding:14px;border:2px solid #E5E7EB;border-radius:14px;background:#F9FAFB;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;color:var(--gray)">🇬🇧 English</button>
+    <div style="background:linear-gradient(135deg,#7C3AED,#2563EB);padding:28px 20px 22px;text-align:center">
+      <img src="/icons/icon-192x192.png" onerror="this.style.display='none'" style="width:90px;height:90px;border-radius:50%;margin-bottom:12px;box-shadow:0 6px 24px rgba(0,0,0,.25)">
+      <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#fff;margin-bottom:4px">Quiz Biblique C.E.V</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.75);letter-spacing:.5px">CHRIST EST VIVANT</div>
+    </div>
+    <div style="padding:24px 22px 28px;text-align:center">
+      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:900;color:#1F2937;margin-bottom:6px">Bienvenue béni(e) de Dieu ! 🙏</div>
+      <div style="font-size:12px;color:#6B7280;margin-bottom:22px">Welcome, blessed child of God!</div>
+      <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:14px">🌍 Choisis ta langue · Choose your language</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button id="lang-btn-fr" onclick="chooseLang('fr')" style="width:100%;padding:15px 20px;border:2px solid #E5E7EB;border-radius:14px;background:#F9FAFB;font-family:Nunito,sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:#374151;display:flex;align-items:center;gap:12px;transition:all .2s">
+          <span style="font-size:28px">🇫🇷</span>
+          <div style="text-align:left">
+            <div style="font-weight:800;font-size:14px;color:#1F2937">Français</div>
+            <div style="font-size:10px;color:#6B7280">Continuer en français</div>
+          </div>
+        </button>
+        <button id="lang-btn-en" onclick="chooseLang('en')" style="width:100%;padding:15px 20px;border:2px solid #E5E7EB;border-radius:14px;background:#F9FAFB;font-family:Nunito,sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:#374151;display:flex;align-items:center;gap:12px;transition:all .2s">
+          <span style="font-size:28px">🇬🇧</span>
+          <div style="text-align:left">
+            <div style="font-weight:800;font-size:14px;color:#1F2937">English</div>
+            <div style="font-size:10px;color:#6B7280">Continue in English</div>
+          </div>
+        </button>
       </div>
     </div>
   </div>
@@ -482,20 +498,26 @@ function goStep(stepId){
 
 function chooseLang(lang){
   setLang(lang,null);
-  // Après la langue → onboarding si pas vu, sinon directement auth choice
-  if(!obHasSeen()){
-    // Masquer le step-lang, lancer onboarding par-dessus
-    document.getElementById("ao").style.display="none";
-    showOnboarding(function(){
-      // Callback après onboarding : afficher auth choice
-      document.getElementById("ao").style.display="flex";
+  // Highlight le bouton sélectionné
+  var fr=(lang==="fr");
+  var btnFr=document.getElementById("lang-btn-fr");
+  var btnEn=document.getElementById("lang-btn-en");
+  if(btnFr){btnFr.style.borderColor=fr?"#7C3AED":"#E5E7EB";btnFr.style.background=fr?"linear-gradient(135deg,#EDE9FE,#DDD6FE)":"#F9FAFB";}
+  if(btnEn){btnEn.style.borderColor=fr?"#E5E7EB":"#7C3AED";btnEn.style.background=fr?"#F9FAFB":"linear-gradient(135deg,#EDE9FE,#DDD6FE)";}
+  // Petite pause pour que l'utilisateur voit la sélection, puis continuer
+  setTimeout(function(){
+    if(!obHasSeen()){
+      document.getElementById("ao").style.display="none";
+      showOnboarding(function(){
+        document.getElementById("ao").style.display="flex";
+        goStep("step-auth-choice");
+        updateAuthChoiceLabels();
+      });
+    } else {
       goStep("step-auth-choice");
       updateAuthChoiceLabels();
-    });
-  } else {
-    goStep("step-auth-choice");
-    updateAuthChoiceLabels();
-  }
+    }
+  },400);
 }
 
 function updateAuthChoiceLabels(){
