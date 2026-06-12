@@ -2050,13 +2050,16 @@ function initApp(){
   loadAudioPref();
   S.tq.mixed=getMixedQuestions();
   var v=getDV();
-  document.getElementById("hvt").textContent='"'+v.text+'"';
-  document.getElementById("hvr").textContent=v.ref+" · Louis Segond 1910";
-  document.getElementById("hdt").textContent=v.defi;
+  var en=(S.lang==="en");
+  var verseText=en&&v.texte?v.texte:v.text;
+  var verseDefi=en&&v.defie?v.defie:v.defi;
+  var hvt=document.getElementById("hvt");if(hvt)hvt.textContent='"'+verseText+'"';
+  var hvr=document.getElementById("hvr");if(hvr)hvr.textContent=v.ref+" · Louis Segond 1910";
+  var hdt=document.getElementById("hdt");if(hdt)hdt.textContent=verseDefi;
   if(S.user){
-    document.getElementById("home-welcome").textContent=t("welcome")+" "+S.user.prenom+" 👋";
-    document.getElementById("ts").textContent="🏆 "+S.score+" pts";
-    document.getElementById("ss").textContent=S.score;
+    var hw=document.getElementById("home-welcome");if(hw)hw.textContent=t("welcome")+" "+S.user.prenom+" 👋";
+    var ts=document.getElementById("ts");if(ts)ts.textContent="🏆 "+S.score+" pts";
+    var ss=document.getElementById("ss");if(ss)ss.textContent=S.score;
   }
   updateXPBar();
   if(window.speechSynthesis){
@@ -3121,37 +3124,37 @@ function renderBible(){
   c.innerHTML=h;
 }
 
-var OB_KEY="cev_onboarding_seen";
+var OB_KEY="cev_onboarding_v2"; // v2 force réaffichage
 function obHasSeen(){try{return localStorage.getItem(OB_KEY)==="1";}catch(e){return false;}}
 function obMarkSeen(){try{localStorage.setItem(OB_KEY,"1");}catch(e){}}
 
 function showOnboarding(onDone){
-  var fr=(S.lang!=="en"); // Utiliser la langue choisie
+  var fr=(S.lang!=="en");
   var slides=[
     {bg:"linear-gradient(135deg,#7C3AED,#2563EB)",logo:true,
-     title:"Bienvenue sur Quiz Biblique C.E.V !",
-     text:"Apprends la Parole de Dieu en t'amusant !\nChrist Est Vivant · La Foi · L'Espérance · L'Amour",
-     badge:"100% Gratuit · Zéro Pub 🎉"},
+     title:fr?"Bienvenue sur Quiz Biblique C.E.V !":"Welcome to Bible Quiz C.E.V!",
+     text:fr?"Apprends la Parole de Dieu en t'amusant !\nChrist Est Vivant · La Foi · L'Espérance · L'Amour":"Learn God's Word while having fun!\nChrist Is Alive · Faith · Hope · Love",
+     badge:fr?"100% Gratuit · Zéro Pub 🎉":"100% Free · Zero Ads 🎉"},
     {bg:"linear-gradient(135deg,#059669,#2563EB)",icon:"📖",
-     title:"Quiz Biblique",
-     text:"200+ questions par niveau\n🌱 Facile · 🔥 Moyen · ⚡ Difficile\nGagne des points et monte en niveau !\nDe Apprenti jusqu'à Héros Biblique 👑",
-     badge:"20 questions / jour"},
+     title:fr?"Quiz Biblique":"Bible Quiz",
+     text:fr?"200+ questions par niveau\n🌱 Facile · 🔥 Moyen · ⚡ Difficile\nGagne des points et monte en niveau !\nDe Apprenti jusqu'à Héros Biblique 👑":"200+ questions per level\n🌱 Easy · 🔥 Medium · ⚡ Hard\nEarn points and level up!\nFrom Apprentice to Bible Hero 👑",
+     badge:fr?"20 questions / jour":"20 questions / day"},
     {bg:"linear-gradient(135deg,#D97706,#F59E0B)",icon:"⚔️",
-     title:"Mode Challenge",
-     text:"Défie tes amis en temps réel !\n2 à 12 joueurs simultanément\nTimer 15 secondes par question\nLe premier à 20 points gagne !",
-     badge:"Multijoueur temps réel 🔥"},
+     title:fr?"Mode Challenge":"Challenge Mode",
+     text:fr?"Défie tes amis en temps réel !\n2 à 12 joueurs simultanément\nTimer 15 secondes par question\nLe premier à 20 points gagne !":"Challenge friends in real time!\n2 to 12 players simultaneously\n15-second timer per question\nFirst to 20 points wins!",
+     badge:fr?"Multijoueur temps réel 🔥":"Real-time multiplayer 🔥"},
     {bg:"linear-gradient(135deg,#7C3AED,#EC4899)",icon:"🏆",
-     title:"Classement & Progression",
-     text:"📊 Classement Jour · Semaine · Mois\n⭐ Système de niveaux avec XP\n🌟 10 niveaux à débloquer\n📅 Verset du jour chaque matin",
-     badge:"Progression sauvegardée 💾"},
+     title:fr?"Classement & Progression":"Leaderboard & Progress",
+     text:fr?"📊 Classement Jour · Semaine · Mois\n⭐ Système de niveaux avec XP\n🌟 10 niveaux à débloquer\n📅 Verset du jour chaque matin":"📊 Daily · Weekly · Monthly leaderboard\n⭐ Level system with XP\n🌟 10 levels to unlock\n📅 Verse of the day each morning",
+     badge:fr?"Progression sauvegardée 💾":"Progress saved 💾"},
     {bg:"linear-gradient(135deg,#059669,#7C3AED)",icon:"📱",
-     title:"Comment s'inscrire",
-     text:"C'est simple et rapide !\n\n🔐 Compte permanent :\nPrénom + Pseudo + Email/Tél + Mot de passe\n\n⚡ Connexion rapide :\nJuste Prénom + Ville · C'est tout ! 🙏",
-     badge:"Inscription en 10 secondes ⚡"},
+     title:fr?"Comment s'inscrire":"How to register",
+     text:fr?"C'est simple et rapide !\n\n🔐 Compte permanent :\nPrénom + Pseudo + Email/Tél + Mot de passe\n\n⚡ Connexion rapide :\nJuste Prénom + Ville · C'est tout ! 🙏":"Simple and fast!\n\n🔐 Permanent account:\nName + Pseudo + Email/Phone + Password\n\n⚡ Quick login:\nJust Name + City · That's it! 🙏",
+     badge:fr?"Inscription en 10 secondes ⚡":"Sign up in 10 seconds ⚡"},
     {bg:"linear-gradient(135deg,#1F2937,#374151)",icon:"😇",
-     title:"Une dernière chose...",
-     text:"Ce quiz est basé sur la Bible Louis Segond 1910.\n\nLes réponses sont dans la Parole de Dieu...\npas sur Google ! 😅\n\nAlors promis... on ne triche pas hein ! 🫵😂\n\nQue le meilleur connaisseur de la Bible gagne ! 🏆",
-     badge:"Que Dieu soit avec toi ! 🙏"}
+     title:fr?"Une dernière chose...":"One last thing...",
+     text:fr?"Ce quiz est basé sur la Bible Louis Segond 1910.\n\nLes réponses sont dans la Parole de Dieu...\npas sur Google ! 😅\n\nAlors promis... on ne triche pas hein ! 🫵😂\n\nQue le meilleur connaisseur de la Bible gagne ! 🏆":"This quiz is based on the Louis Segond 1910 Bible.\n\nThe answers are in God's Word...\nnot on Google! 😅\n\nSo promise... no cheating! 🫵😂\n\nMay the best Bible scholar win! 🏆",
+     badge:fr?"Que Dieu soit avec toi ! 🙏":"May God be with you! 🙏"}
   ];
 
   var cur=0;
@@ -3169,10 +3172,10 @@ function showOnboarding(onDone){
       ?'<img src="/icons/icon-192x192.png" onerror="this.style.display=\'none\'" style="width:80px;height:80px;border-radius:50%;margin-bottom:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)">'
       :'<div style="font-size:54px;margin-bottom:8px">'+s.icon+'</div>';
     var isLast=(cur===slides.length-1);
-    var backBtn=cur>0?'<button onclick="obPrev()" style="background:#F3F4F6;color:#6B7280;border:none;border-radius:12px;padding:10px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer">← Retour</button>':'<div></div>';
+    var backBtn=cur>0?'<button onclick="obPrev()" style="background:#F3F4F6;color:#6B7280;border:none;border-radius:12px;padding:10px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer">← '+(fr?"Retour":"Back")+'</button>':'<div></div>';
     var nextBtn=isLast
-      ?'<button onclick="obFinish()" style="flex:1;background:linear-gradient(135deg,#059669,#7C3AED);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer">Je m\'inscris ! ✝️</button>'
-      :'<button onclick="obNext()" style="flex:1;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(124,58,237,.3)">Suivant →</button>';
+      ?'<button onclick="obFinish()" style="flex:1;background:linear-gradient(135deg,#059669,#7C3AED);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer">'+(fr?"Je m\'inscris ! ✝️":"Sign me up! ✝️")+'</button>'
+      :'<button onclick="obNext()" style="flex:1;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(124,58,237,.3)">'+(fr?"Suivant →":"Next →")+'</button>';
     card.innerHTML=
       '<div style="background:'+s.bg+';padding:22px 20px 16px;text-align:center">'+iconH
       +'<div style="display:flex;justify-content:center;gap:5px;margin-top:6px">'+dots+'</div></div>'
@@ -3182,7 +3185,7 @@ function showOnboarding(onDone){
       +(s.badge?'<div style="margin-top:10px;text-align:center"><span style="background:linear-gradient(135deg,#EDE9FE,#DBEAFE);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:800;color:#7C3AED">'+s.badge+'</span></div>':'')
       +'</div>'
       +'<div style="display:flex;gap:8px;padding:10px 20px 14px;align-items:center">'+backBtn+nextBtn+'</div>'
-      +(!isLast?'<div style="text-align:center;padding-bottom:12px"><button onclick="obFinish()" style="background:none;border:none;color:#9CA3AF;font-family:Nunito,sans-serif;font-size:11px;cursor:pointer;text-decoration:underline">Passer l\'intro</button></div>':'');
+      +(!isLast?'<div style="text-align:center;padding-bottom:12px"><button onclick="obFinish()" style="background:none;border:none;color:#9CA3AF;font-family:Nunito,sans-serif;font-size:11px;cursor:pointer;text-decoration:underline">'+(fr?"Passer l\'intro":"Skip intro")+'</button></div>':'');
   }
 
   window.obNext=function(){if(cur<slides.length-1){cur++;renderOb();}};
