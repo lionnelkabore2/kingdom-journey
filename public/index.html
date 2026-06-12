@@ -471,7 +471,7 @@ var SB_KEY="sb_publishable_oFgJJ9PzpEVSVzImdyfh5g_4N5NY99B";
 async function sbFetch(path,opts){var url=SB_URL+"/rest/v1/"+path;var authTok=(opts&&opts.headers&&opts.headers["Authorization"])?opts.headers["Authorization"]:"Bearer "+SB_KEY;var headers={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":authTok,"Prefer":"return=representation"};if(opts&&opts.headers)Object.assign(headers,opts.headers);var res=await fetch(url,Object.assign({headers:headers},opts||{}));var text=await res.text();try{return{ok:res.ok,status:res.status,data:text?JSON.parse(text):null};}catch(e){return{ok:res.ok,status:res.status,data:text};}}
 async function sbAuth(action,body){var url=SB_URL+"/auth/v1/"+action;var res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});var d=await res.json();return{ok:res.ok,data:d};}
 // ── STATE ─────────────────────────────────────────────────
-var S={user:null,token:null,lang:"fr",mode:"reg",opt:"email",score:0,qc:0,lvl:"easy",qi:0,qsc:0,qans:false,tq:{easy:[],medium:[],hard:[],mixed:[]}};
+var S={user:null,token:null,lang:"fr",mode:"reg",opt:"perm",score:0,qc:0,lvl:"easy",qi:0,qsc:0,qans:false,tq:{easy:[],medium:[],hard:[],mixed:[]}};
 function todayStr(){return new Date().toISOString().slice(0,10);}
 // ── TRANSLATIONS ──────────────────────────────────────────
 var T={fr:{subtitle:"CHRIST EST VIVANT",logout:"Déconnexion",pts:"Points",quiz:"Quiz",jours:"Jours",rang:"Rang",welcome:"Bonjour",verse_sub:"Que la Parole habite en toi richement.",defi_title:"📅 Défi du jour",quiz_title:"Quiz Biblique",quiz_sub:"Questions mélangées · +1/+2/+3 pts",quiz_lbl:"Jouer →",verse_title:"Verset du Jour",verse_sub2:"LS 1910 · Méditation",verse_lbl:"Lire →",cls_title:"Classement",cls_sub:"Défie tes amis en temps réel",cls_lbl:"Voir →",tab_easy:"Débutant",tab_med:"Intermédiaire",tab_hard:"Avancé",rest:"restantes aujourd'hui",correct:"✅ Correct !",well_done:"Bien joué !",wrong:"❌ Incorrect",good_ans:"Bonne réponse :",next_q:"Question suivante →",quiz_done_title:"Quiz du jour terminé !",quiz_done_p:"Tu as utilisé tes <strong>20 questions</strong> pour aujourd'hui.<br>Reviens demain !",new_q:"🔄 Nouvelles questions demain",cls_btn:"🏆 Classement",score_lbl:"Score",cls_today:"Classement du Jour",cls_reset:"Top 10 · Se remet à zéro chaque jour à minuit",my_score:"📊 Mon score aujourd'hui",q_left:"Q restantes",no_players:"🙏 Aucun joueur encore aujourd'hui.<br>Joue au Quiz pour apparaître ici !",online:"En ligne · Temps réel",join:"Rejoindre le défi",email_pw:"Email + Mot de passe",email_pw_sub:"Compte permanent",name_only:"Juste un prénom",name_only_sub:"Connexion rapide, sans mot de passe",prenom:"Prénom",email:"Email",pw:"Mot de passe",ville:"Ville",start:"Commencer →",already:"Déjà un compte ?",signin:"Se connecter",no_account:"Pas encore de compte ?",register:"S'inscrire",err_fields:"Remplis tous les champs",err_login:"Email ou mot de passe incorrect",loading:"Chargement...",ls:"📖 Louis Segond 1910",exceptional:"Exceptionnel ! Tu maîtrises parfaitement la Parole de Dieu !",great:"Très bien ! Tu connais bien ta Bible. Continue !",good:"Bon effort ! Lis ta Bible chaque jour pour progresser !",keep:"Ne te décourage pas ! La Parole de Dieu est un trésor.",share_txt:"✝️ Quiz Biblique C.E.V\nBible Louis Segond 1910\nScore du jour :"},
@@ -562,24 +562,32 @@ function setAuthOpt(opt){
 function showAuthForm(){
   var isReg=(S.mode==="reg");
   var isPerm=(S.opt==="perm");
-  var fr=(S.lang==="fr");
-  document.getElementById("form-perm-reg").style.display=(isReg&&isPerm)?"block":"none";
-  document.getElementById("form-quick-reg").style.display=(isReg&&!isPerm)?"block":"none";
-  document.getElementById("form-perm-login").style.display=(!isReg&&isPerm)?"block":"none";
-  document.getElementById("form-quick-login").style.display=(!isReg&&!isPerm)?"block":"none";
+  var fr=(S.lang!=="en");
+  var ids=["form-perm-reg","form-quick-reg","form-perm-login","form-quick-login"];
+  for(var i=0;i<ids.length;i++){var el=document.getElementById(ids[i]);if(el)el.style.display="none";}
+  var show=isReg?(isPerm?"form-perm-reg":"form-quick-reg"):(isPerm?"form-perm-login":"form-quick-login");
+  var showEl=document.getElementById(show);if(showEl)showEl.style.display="block";
   var btn=document.getElementById("abtn");
   if(btn)btn.textContent=isReg?(fr?"S'inscrire →":"Register →"):(fr?"Se connecter →":"Login →");
 }
 
 async function doAuth(){
   var btn=document.getElementById("abtn");
-  btn.disabled=true;btn.textContent="...";
-  document.getElementById("amsg").style.display="none";
+  if(btn){btn.disabled=true;btn.textContent="...";}
+  var amsg=document.getElementById("amsg");
+  if(amsg)amsg.style.display="none";
+  if(!S.mode)S.mode="reg";
+  if(!S.opt)S.opt="perm";
   try{
-    if(S.mode==="reg"){if(S.opt==="perm")await doRegEmail();else await doRegName();}
-    else{if(S.opt==="perm")await doLogin();else await doLoginQuick();}
+    if(S.mode==="reg"){
+      if(S.opt==="perm")await doRegEmail();
+      else await doRegName();
+    } else {
+      if(S.opt==="perm")await doLogin();
+      else await doLoginQuick();
+    }
   }catch(e){showMsg("Erreur: "+e.message);}
-  btn.disabled=false;
+  if(btn){btn.disabled=false;}
   showAuthForm();
 }
 
@@ -3010,7 +3018,7 @@ function obHasSeen(){try{return localStorage.getItem(OB_KEY)==="1";}catch(e){ret
 function obMarkSeen(){try{localStorage.setItem(OB_KEY,"1");}catch(e){}}
 
 function showOnboarding(onDone){
-  var fr=true; // sera mis à jour avec S.lang
+  var fr=(S.lang!=="en"); // Utiliser la langue choisie
   var slides=[
     {bg:"linear-gradient(135deg,#7C3AED,#2563EB)",logo:true,
      title:"Bienvenue sur Quiz Biblique C.E.V !",
