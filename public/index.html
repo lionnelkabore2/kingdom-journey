@@ -2201,7 +2201,7 @@ function renderDefiHome(){
   // Rejoindre
   h+='<div class="defi-card">';
   h+='<h3 style="font-size:13px;font-weight:800;color:#7C3AED;margin-bottom:8px">&#128273; '+(lbl?"Rejoindre une salle":"Join a room")+'</h3>';
-  h+='<input id="room-code-inp" type="number" maxlength="4" placeholder="0000" style="width:100%;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-size:22px;text-align:center;letter-spacing:8px;font-weight:800;color:#7C3AED;margin:10px 0;outline:none">';
+  h+='<input id="room-code-inp" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" style="width:100%;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-size:28px;text-align:center;letter-spacing:10px;font-weight:800;color:#7C3AED;margin:10px 0;outline:none" oninput="this.value=this.value.replace(/[^0-9]/g,\'\')">'
   h+='<button class="defi-btn" onclick="joinRoom()">&#128640; '+(lbl?"Rejoindre":"Join")+'</button>';
   h+='</div>';
 
@@ -2250,28 +2250,62 @@ async function createRoom(){
 }
 
 async function joinRoom(){
-  var code=document.getElementById("room-code-inp");
-  if(!code||!code.value||code.value.length!==4){alert("Entrez un code à 4 chiffres");return;}
-  if(getDefiUsed()>=DEFI_MAX_PER_DAY){
-    alert(S.lang==="fr"?"Limite de 10 challenges atteinte aujourd'hui !":"10 challenge limit reached today!");
+  var codeEl=document.getElementById("room-code-inp");
+  var codeVal=codeEl?codeEl.value.trim():"";
+  if(!codeVal||codeVal.length<4){
+    alert(S.lang==="fr"?"Entrez le code à 4 chiffres":"Enter the 4-digit code");
     return;
   }
-  var r=await fetch(SB_URL+"/rest/v1/cev_rooms?code=eq."+code.value+"&status=eq.waiting",{
+  if(getDefiUsed()>=DEFI_MAX_PER_DAY){
+    alert(S.lang==="fr"?"Limite de 10 challenges atteinte !":"10 challenge limit reached!");
+    return;
+  }
+  if(!S.token){
+    alert(S.lang==="fr"?"Connecte-toi d'abord !":"Please log in first!");
+    return;
+  }
+
+  // Chercher la salle (waiting OU playing — pas finished)
+  var r=await fetch(SB_URL+"/rest/v1/cev_rooms?code=eq."+codeVal+"&status=neq.finished&order=created_at.desc&limit=1",{
     headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
   });
-  var data=await r.json();
-  if(!data||!data[0]){alert(S.lang==="fr"?"Salle introuvable ou déjà commencée":"Room not found or already started");return;}
+  var data=null;
+  try{data=await r.json();}catch(e){}
+  if(!data||!data[0]){
+    alert(S.lang==="fr"?"Code introuvable ou challenge terminé":"Code not found or challenge ended");
+    return;
+  }
   var room=data[0];
-  var playersR=await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+room.id,{
+
+  // Vérifier si la salle est pleine
+  var playersR=await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+room.id+"&online=eq.true",{
     headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
   });
-  var players=await playersR.json();
-  if(players.length>=room.max_players){alert(S.lang==="fr"?"Salle complète":"Room is full");return;}
-  DEFI.room=room;DEFI.qs=room.q_data||[];
+  var players=[];
+  try{players=await playersR.json()||[];}catch(e){}
+  
+  // Vérifier si ce joueur est déjà dans la salle
+  var alreadyIn=players.find(function(p){return p.user_id===S.user.id;});
+  if(!alreadyIn&&players.length>=room.max_players){
+    alert(S.lang==="fr"?"La salle est complète !":"The room is full!");
+    return;
+  }
+
+  DEFI.room=room;
+  DEFI.qs=room.q_data||[];
   await joinRoomAsPlayer(room.id);
   saveDefiSession();
   subscribeRoom(room.id);
-  renderDefiWaiting();
+  // Aller directement au bon écran selon le statut
+  if(room.status==="playing"){
+    DEFI.answered=false;
+    DEFI_NEXT_PENDING=false;
+    await loadPlayers();
+    renderDefiPlaying();
+    startQuestionTimer();
+  } else {
+    renderDefiWaiting();
+  }
 }
 
 async function joinRoomAsPlayer(roomId){
