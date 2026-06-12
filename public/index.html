@@ -527,21 +527,73 @@ function chooseLang(lang){
 }
 
 function updateAuthChoiceLabels(){
-  var fr=(S.lang==="fr");
+  var en=(S.lang==="en");
+  // Étape 3 — choix
   var t1=document.getElementById("auth-choice-title");
   var t2=document.getElementById("auth-choice-sub");
   var br=document.getElementById("btn-register");
   var bl=document.getElementById("btn-login");
-  if(t1)t1.textContent=fr?"Bienvenue !":"Welcome!";
-  if(t2)t2.textContent=fr?"Rejoins la communauté C.E.V":"Join the C.E.V community";
-  if(br)br.textContent=fr?"✨ S'inscrire":"✨ Register";
-  if(bl)bl.textContent=fr?"🔑 J'ai déjà un compte":"🔑 I already have an account";
+  if(t1)t1.textContent=en?"Welcome!":"Bienvenue !";
+  if(t2)t2.textContent=en?"Join the C.E.V community":"Rejoins la communauté C.E.V";
+  if(br)br.textContent=en?"✨ Register":"✨ S'inscrire";
+  if(bl)bl.textContent=en?"🔑 I already have an account":"🔑 J'ai déjà un compte";
+
+  // Étape 4 — boutons type de compte
+  var optPerm=document.getElementById("opt-perm");
+  var optQuick=document.getElementById("opt-quick");
+  if(optPerm)optPerm.innerHTML=en?'🔐 <strong>Permanent account</strong><br><span style="font-size:9px;font-weight:400;color:#6B7280">Progress saved</span>':'🔐 <strong>Compte permanent</strong><br><span style="font-size:9px;font-weight:400;color:#6B7280">Progression sauvegardée</span>';
+  if(optQuick)optQuick.innerHTML=en?'⚡ <strong>Quick login</strong><br><span style="font-size:9px;font-weight:400">Just Name + City</span>':'⚡ <strong>Connexion rapide</strong><br><span style="font-size:9px;font-weight:400">Juste Prénom + Ville</span>';
+
+  // Labels des champs
+  var fields={
+    "lbl-prenom":en?"First name":"Prénom",
+    "lbl-email":en?"Email or phone":"Email ou téléphone",
+    "lbl-pw":en?"Password":"Mot de passe",
+    "lbl-ville":en?"City":"Ville"
+  };
+  for(var id in fields){var el=document.getElementById(id);if(el)el.textContent=fields[id];}
+
+  // Placeholders
+  var placeholders={
+    "inp-prenom":en?"John":"Jean",
+    "inp-email":en?"john@gmail.com or +22600000000":"jean@gmail.com ou +22600000000",
+    "inp-pw":en?"••••••••":"••••••••",
+    "inp-ville":en?"City":"Abidjan",
+    "inp-prenom2":en?"John":"Jean",
+    "inp-ville2":en?"City":"Abidjan",
+    "inp-email-login":en?"john@gmail.com or +22600000000":"jean@gmail.com ou +22600000000",
+    "inp-pw-login":en?"••••••••":"••••••••",
+    "inp-prenom-login":en?"John":"Jean",
+    "inp-ville-login":en?"City":"Abidjan"
+  };
+  for(var id in placeholders){var el=document.getElementById(id);if(el)el.placeholder=placeholders[id];}
+
+  // Labels inline non-id
+  document.querySelectorAll("#form-quick-reg .fd label, #form-quick-login .fd label, #form-perm-login .fd label").forEach(function(el){
+    var txt=el.textContent.trim();
+    if(txt==="Prénom"||txt==="First name")el.textContent=en?"First name":"Prénom";
+    if(txt.includes("Ville")||txt.includes("City"))el.textContent=en?"City":"Ville";
+    if(txt.includes("Email")||txt.includes("téléphone")||txt.includes("phone"))el.textContent=en?"Email or phone":"Email ou téléphone";
+    if(txt.includes("passe")||txt.includes("Password"))el.textContent=en?"Password":"Mot de passe";
+  });
+  // Pseudo labels
+  document.querySelectorAll(".fd label").forEach(function(el){
+    if(el.textContent.includes("Pseudo"))el.innerHTML=en?'Pseudo <span style="font-size:9px;color:#6B7280;font-weight:400">(leaderboards)</span>':'Pseudo <span style="font-size:9px;color:#6B7280;font-weight:400">(classements)</span>';
+  });
+
+  // Bouton retour
+  var backBtn=document.querySelector("#step-form button[onclick*='step-auth-choice']");
+  if(backBtn)backBtn.textContent=en?"← Back":"← Retour";
+
+  // Bouton submit
+  showAuthForm();
 }
 
 function goAuthMode(mode){
   S.mode=mode;
-  S.opt="perm"; // défaut
+  S.opt="perm";
   goStep("step-form");
+  updateAuthChoiceLabels();
   showAuthForm();
 }
 
