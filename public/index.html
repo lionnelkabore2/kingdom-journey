@@ -1241,13 +1241,16 @@ var OPT_TRANS={
   }
 };
 function translateOpt(opt){
-  if(S.lang!=="en")return opt;
-  // Si déjà format "FR / EN"
-  if(opt.indexOf(" / ")>=0)return opt.split(" / ")[1];
-  // Chercher dans le dictionnaire
-  var trans=OPT_TRANS.fr_en[opt.trim()];
-  if(trans)return trans;
-  // Retourner l'original (souvent des noms propres ou chiffres compréhensibles)
+  if(!opt)return opt;
+  // Format "Français / English" → prendre la bonne partie selon la langue
+  if(opt.indexOf(" / ")>=0){
+    return S.lang==="en"?opt.split(" / ")[1]:opt.split(" / ")[0];
+  }
+  // Mode anglais uniquement : chercher dans le dictionnaire
+  if(S.lang==="en"){
+    var trans=OPT_TRANS.fr_en[opt.trim()];
+    if(trans)return trans;
+  }
   return opt;
 }
 
