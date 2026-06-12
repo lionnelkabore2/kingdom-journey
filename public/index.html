@@ -49,6 +49,8 @@ html,body{
 /* AUTH */
 #ao{position:fixed;inset:0;background:linear-gradient(160deg,#7C3AED,#2563EB 50%,#059669);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
 #ao.h{display:none}
+.auth-step{width:100%;max-width:390px;background:#fff;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+#ao.h{display:none}
 .at{font-family:"Playfair Display",serif;font-size:26px;font-weight:900;color:#FFF;margin-bottom:2px;letter-spacing:1px;text-align:center;text-shadow:0 2px 10px rgba(0,0,0,.2)}
 .asub{color:rgba(255,255,255,.75);font-size:10px;margin-bottom:6px;font-style:italic;letter-spacing:2px;text-transform:uppercase;text-align:center}
 .atag{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:20px;padding:3px 10px;font-size:9px;color:#FFF;font-weight:700;margin-bottom:20px;display:inline-block}
@@ -285,67 +287,79 @@ html,body{
 </div>
 
 <div id="ao">
-  <div class="at">✝️ Quiz Biblique C.E.V</div>
-  <div class="asub">Christ Est Vivant · Bible Louis Segond 1910</div>
-  <div class="atag">🌍 Français / English</div>
-  <div class="ac" id="ac-reg">
-    <div class="lang-sw">
-      <button class="lang-btn active" onclick="setLang('fr',this)">🇫🇷 Français</button>
-      <button class="lang-btn" onclick="setLang('en',this)">🇬🇧 English</button>
-    </div>
-
-    <!-- Onglets Login / Register -->
-    <div style="display:flex;gap:5px;margin-bottom:14px;background:#F3F4F6;border-radius:10px;padding:3px">
-      <button id="tab-reg" onclick="setAuthTab('reg')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff">S'inscrire</button>
-      <button id="tab-login" onclick="setAuthTab('login')" style="flex:1;padding:8px;border:none;border-radius:8px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer;background:none;color:var(--gray)">Se connecter</button>
-    </div>
-
-    <!-- Choix du type de compte -->
-    <div style="display:flex;gap:6px;margin-bottom:12px">
-      <button id="opt-perm" onclick="setAuthOpt('perm')" style="flex:1;padding:10px 6px;border:2px solid var(--purple);border-radius:10px;background:var(--purplel);font-family:Nunito,sans-serif;font-weight:700;font-size:10px;cursor:pointer;color:var(--purple);text-align:center">
-        🔐 Compte permanent<br><span style="font-size:9px;font-weight:400;color:var(--gray)">Sauvegarde ta progression</span>
-      </button>
-      <button id="opt-quick" onclick="setAuthOpt('quick')" style="flex:1;padding:10px 6px;border:2px solid #E5E7EB;border-radius:10px;background:#F9FAFB;font-family:Nunito,sans-serif;font-weight:700;font-size:10px;cursor:pointer;color:var(--gray);text-align:center">
-        ⚡ Prénom + Ville<br><span style="font-size:9px;font-weight:400">Connexion rapide</span>
-      </button>
-    </div>
-
-    <!-- Formulaire compte permanent (inscription) -->
-    <div id="form-perm-reg" style="display:block">
-      <div class="fd"><label>Prénom</label><input type="text" id="inp-prenom" placeholder="Jean"></div>
-      <div class="fd">
-        <label>Pseudo <span style="font-size:9px;color:var(--gray);font-weight:400">(affiché dans les classements)</span></label>
-        <input type="text" id="inp-pseudo" placeholder="BiblioWarrior42" maxlength="20">
+  <!-- ÉTAPE 1 : CHOIX DE LANGUE -->
+  <div id="step-lang" class="auth-step">
+    <div style="text-align:center;padding:30px 20px 20px">
+      <img src="/icons/icon-192x192.png" onerror="this.style.display='none'" style="width:90px;height:90px;border-radius:50%;margin-bottom:14px;box-shadow:0 6px 24px rgba(124,58,237,.3)">
+      <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:var(--dark);margin-bottom:4px">Quiz Biblique C.E.V</div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:24px">Christ Est Vivant · La Foi · L'Espérance · L'Amour</div>
+      <div style="font-size:13px;font-weight:700;color:var(--dark);margin-bottom:14px">🌍 Choisissez votre langue</div>
+      <div style="display:flex;gap:10px">
+        <button onclick="chooseLang('fr')" style="flex:1;padding:14px;border:2px solid var(--purple);border-radius:14px;background:linear-gradient(135deg,var(--purplel),#EDE9FE);font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;color:var(--purple)">🇫🇷 Français</button>
+        <button onclick="chooseLang('en')" style="flex:1;padding:14px;border:2px solid #E5E7EB;border-radius:14px;background:#F9FAFB;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;color:var(--gray)">🇬🇧 English</button>
       </div>
-      <div class="fd"><label>Email ou téléphone</label><input type="text" id="inp-email" placeholder="jean@gmail.com ou +22600000000"></div>
-      <div class="fd"><label>Mot de passe</label><input type="password" id="inp-pw" placeholder="••••••••"></div>
-      <div class="fd"><label>Ville</label><input type="text" id="inp-ville" placeholder="Abidjan"></div>
     </div>
+  </div>
 
-    <!-- Formulaire prénom/ville (inscription) -->
-    <div id="form-quick-reg" style="display:none">
-      <div class="fd"><label>Prénom</label><input type="text" id="inp-prenom2" placeholder="Jean"></div>
-      <div class="fd">
-        <label>Pseudo <span style="font-size:9px;color:var(--gray);font-weight:400">(affiché dans les classements)</span></label>
-        <input type="text" id="inp-pseudo2" placeholder="BiblioWarrior42" maxlength="20">
+  <!-- ÉTAPE 3 : S'INSCRIRE OU SE CONNECTER -->
+  <div id="step-auth-choice" class="auth-step" style="display:none">
+    <div style="text-align:center;padding:24px 20px 16px">
+      <div style="font-size:32px;margin-bottom:8px">✝️</div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--dark);margin-bottom:6px" id="auth-choice-title">Bienvenue !</div>
+      <div style="font-size:11px;color:var(--gray);margin-bottom:20px" id="auth-choice-sub">Rejoins la communauté C.E.V</div>
+      <button onclick="goAuthMode('reg')" style="width:100%;padding:14px;margin-bottom:10px;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:none;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 15px rgba(124,58,237,.3)" id="btn-register">✨ S'inscrire</button>
+      <button onclick="goAuthMode('login')" style="width:100%;padding:14px;background:#F3F4F6;color:var(--dark);border:none;border-radius:14px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer" id="btn-login">🔑 J'ai déjà un compte</button>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 4 : FORMULAIRE -->
+  <div id="step-form" class="auth-step" style="display:none">
+    <div style="padding:16px 18px 8px">
+
+      <!-- Choix type de compte -->
+      <div style="display:flex;gap:7px;margin-bottom:14px">
+        <button id="opt-perm" onclick="setAuthOpt('perm')" style="flex:1;padding:10px 6px;border:2px solid var(--purple);border-radius:12px;background:var(--purplel);font-family:Nunito,sans-serif;font-weight:700;font-size:10px;cursor:pointer;color:var(--purple);text-align:center;line-height:1.4">
+          🔐 <strong>Compte permanent</strong><br><span style="font-size:9px;font-weight:400;color:var(--gray)">Progression sauvegardée</span>
+        </button>
+        <button id="opt-quick" onclick="setAuthOpt('quick')" style="flex:1;padding:10px 6px;border:2px solid #E5E7EB;border-radius:12px;background:#F9FAFB;font-family:Nunito,sans-serif;font-weight:700;font-size:10px;cursor:pointer;color:var(--gray);text-align:center;line-height:1.4">
+          ⚡ <strong>Connexion rapide</strong><br><span style="font-size:9px;font-weight:400">Juste Prénom + Ville</span>
+        </button>
       </div>
-      <div class="fd"><label>Ville</label><input type="text" id="inp-ville2" placeholder="Abidjan"></div>
-    </div>
 
-    <!-- Formulaire connexion compte permanent -->
-    <div id="form-perm-login" style="display:none">
-      <div class="fd"><label>Email ou téléphone</label><input type="text" id="inp-email-login" placeholder="jean@gmail.com ou +22600000000"></div>
-      <div class="fd"><label>Mot de passe</label><input type="password" id="inp-pw-login" placeholder="••••••••"></div>
-    </div>
+      <!-- Formulaire compte permanent inscription -->
+      <div id="form-perm-reg">
+        <div class="fd"><label id="lbl-prenom">Prénom</label><input type="text" id="inp-prenom" placeholder="Jean"></div>
+        <div class="fd"><label>Pseudo <span style="font-size:9px;color:var(--gray);font-weight:400">(classements)</span></label><input type="text" id="inp-pseudo" placeholder="BiblioWarrior42" maxlength="20"></div>
+        <div class="fd"><label id="lbl-email">Email ou téléphone</label><input type="text" id="inp-email" placeholder="jean@gmail.com ou +22600000000"></div>
+        <div class="fd"><label id="lbl-pw">Mot de passe</label><input type="password" id="inp-pw" placeholder="••••••••"></div>
+        <div class="fd"><label id="lbl-ville">Ville</label><input type="text" id="inp-ville" placeholder="Abidjan"></div>
+      </div>
 
-    <!-- Formulaire connexion rapide (prénom) -->
-    <div id="form-quick-login" style="display:none">
-      <div class="fd"><label>Prénom</label><input type="text" id="inp-prenom-login" placeholder="Jean"></div>
-      <div class="fd"><label>Ville</label><input type="text" id="inp-ville-login" placeholder="Abidjan"></div>
-    </div>
+      <!-- Formulaire connexion rapide inscription -->
+      <div id="form-quick-reg" style="display:none">
+        <div class="fd"><label>Prénom</label><input type="text" id="inp-prenom2" placeholder="Jean"></div>
+        <div class="fd"><label>Pseudo <span style="font-size:9px;color:var(--gray);font-weight:400">(classements)</span></label><input type="text" id="inp-pseudo2" placeholder="BiblioWarrior42" maxlength="20"></div>
+        <div class="fd"><label>Ville</label><input type="text" id="inp-ville2" placeholder="Abidjan"></div>
+      </div>
 
-    <button class="abtn" id="abtn" onclick="doAuth()">Commencer →</button>
-    <div class="amsg" id="amsg"></div>
+      <!-- Formulaire compte permanent connexion -->
+      <div id="form-perm-login" style="display:none">
+        <div class="fd"><label>Email ou téléphone</label><input type="text" id="inp-email-login" placeholder="jean@gmail.com ou +22600000000"></div>
+        <div class="fd"><label>Mot de passe</label><input type="password" id="inp-pw-login" placeholder="••••••••"></div>
+      </div>
+
+      <!-- Formulaire connexion rapide -->
+      <div id="form-quick-login" style="display:none">
+        <div class="fd"><label>Prénom</label><input type="text" id="inp-prenom-login" placeholder="Jean"></div>
+        <div class="fd"><label>Ville</label><input type="text" id="inp-ville-login" placeholder="Abidjan"></div>
+      </div>
+
+      <button class="abtn" id="abtn" onclick="doAuth()">Commencer →</button>
+      <div class="amsg" id="amsg"></div>
+      <div style="text-align:center;margin-top:8px">
+        <button onclick="goStep('step-auth-choice')" style="background:none;border:none;color:var(--gray);font-family:Nunito,sans-serif;font-size:11px;cursor:pointer;text-decoration:underline">← Retour</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -459,15 +473,51 @@ function showMsg(msg,isInfo){
 
 function normPrenom(s){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9 _-]/g,"").trim();}
 
-function setAuthTab(tab){
-  S.mode=tab;
-  var isReg=(tab==="reg");
-  document.getElementById("tab-reg").style.background=isReg?"linear-gradient(135deg,var(--purple),var(--blue))":"none";
-  document.getElementById("tab-reg").style.color=isReg?"#fff":"var(--gray)";
-  document.getElementById("tab-login").style.background=isReg?"none":"linear-gradient(135deg,var(--purple),var(--blue))";
-  document.getElementById("tab-login").style.color=isReg?"var(--gray)":"#fff";
+// ── NAVIGATION ENTRE ÉTAPES AUTH ──────────────────────────
+function goStep(stepId){
+  document.querySelectorAll(".auth-step").forEach(function(e){e.style.display="none";});
+  var el=document.getElementById(stepId);
+  if(el)el.style.display="block";
+}
+
+function chooseLang(lang){
+  setLang(lang,null);
+  // Après la langue → onboarding si pas vu, sinon directement auth choice
+  if(!obHasSeen()){
+    // Masquer le step-lang, lancer onboarding par-dessus
+    document.getElementById("ao").style.display="none";
+    showOnboarding(function(){
+      // Callback après onboarding : afficher auth choice
+      document.getElementById("ao").style.display="flex";
+      goStep("step-auth-choice");
+      updateAuthChoiceLabels();
+    });
+  } else {
+    goStep("step-auth-choice");
+    updateAuthChoiceLabels();
+  }
+}
+
+function updateAuthChoiceLabels(){
+  var fr=(S.lang==="fr");
+  var t1=document.getElementById("auth-choice-title");
+  var t2=document.getElementById("auth-choice-sub");
+  var br=document.getElementById("btn-register");
+  var bl=document.getElementById("btn-login");
+  if(t1)t1.textContent=fr?"Bienvenue !":"Welcome!";
+  if(t2)t2.textContent=fr?"Rejoins la communauté C.E.V":"Join the C.E.V community";
+  if(br)br.textContent=fr?"✨ S'inscrire":"✨ Register";
+  if(bl)bl.textContent=fr?"🔑 J'ai déjà un compte":"🔑 I already have an account";
+}
+
+function goAuthMode(mode){
+  S.mode=mode;
+  S.opt="perm"; // défaut
+  goStep("step-form");
   showAuthForm();
 }
+
+function setAuthTab(tab){S.mode=tab;showAuthForm();}
 
 function setAuthOpt(opt){
   S.opt=opt;
@@ -484,12 +534,13 @@ function setAuthOpt(opt){
 function showAuthForm(){
   var isReg=(S.mode==="reg");
   var isPerm=(S.opt==="perm");
+  var fr=(S.lang==="fr");
   document.getElementById("form-perm-reg").style.display=(isReg&&isPerm)?"block":"none";
   document.getElementById("form-quick-reg").style.display=(isReg&&!isPerm)?"block":"none";
   document.getElementById("form-perm-login").style.display=(!isReg&&isPerm)?"block":"none";
   document.getElementById("form-quick-login").style.display=(!isReg&&!isPerm)?"block":"none";
   var btn=document.getElementById("abtn");
-  if(btn)btn.textContent=isReg?(S.lang==="fr"?"S'inscrire →":"Register →"):(S.lang==="fr"?"Se connecter →":"Login →");
+  if(btn)btn.textContent=isReg?(fr?"S'inscrire →":"Register →"):(fr?"Se connecter →":"Login →");
 }
 
 async function doAuth(){
@@ -2930,7 +2981,7 @@ var OB_KEY="cev_onboarding_seen";
 function obHasSeen(){try{return localStorage.getItem(OB_KEY)==="1";}catch(e){return false;}}
 function obMarkSeen(){try{localStorage.setItem(OB_KEY,"1");}catch(e){}}
 
-function showOnboarding(){
+function showOnboarding(onDone){
   var fr=true; // sera mis à jour avec S.lang
   var slides=[
     {bg:"linear-gradient(135deg,#7C3AED,#2563EB)",logo:true,
@@ -2995,7 +3046,8 @@ function showOnboarding(){
   window.obFinish=function(){
     obMarkSeen();
     var ob=document.getElementById("onboarding");
-    if(ob){ob.style.opacity="0";setTimeout(function(){ob.style.display="none";},400);}
+    if(ob){ob.style.opacity="0";setTimeout(function(){ob.style.display="none";if(typeof onDone==="function")onDone();},400);}
+    else{if(typeof onDone==="function")onDone();}
   };
 
   renderOb();
@@ -3023,28 +3075,20 @@ window.onload=function(){
     if(sess){
       var d=JSON.parse(sess);var today=todayStr();
       if(d.uid&&d.token){
+        // Utilisateur déjà connecté
         S.user={id:d.uid,prenom:d.prenom,pseudo:d.pseudo||d.prenom,ville:d.ville};
         S.token=d.token;
         S.score=d.day===today?(d.score||0):0;
         document.getElementById("ao").classList.add("h");
-        // Cacher l'onboarding si déjà connecté
         var ob=document.getElementById("onboarding");
         if(ob)ob.style.display="none";
         initApp();
-      } else {
-        // Pas connecté — montrer onboarding si première visite
-        if(!obHasSeen())showOnboarding();
-        else document.getElementById("onboarding").style.display="none";
+        return;
       }
-    } else {
-      // Jamais connecté — montrer onboarding
-      if(!obHasSeen())showOnboarding();
-      else document.getElementById("onboarding").style.display="none";
     }
-  }catch(e){
-    if(!obHasSeen())showOnboarding();
-    else document.getElementById("onboarding").style.display="none";
-  }
+  }catch(e){}
+  // Nouvel utilisateur — démarrer à l'étape choix de langue
+  goStep("step-lang");
 };
 </script>
 </body>
