@@ -1164,38 +1164,56 @@ hard:[
 ]};
 </script>
 <script>
-// ── DAILY VERSES ───────────────────────────────────────────
+// Dictionnaire de traduction pour les options communes
+var OPT_TRANS={
+  "fr_en":{
+    "L'homme":"Man","La femme":"Woman","Un homme":"A man","Une femme":"A woman",
+    "Dieu":"God","Le diable":"The devil","Satan":"Satan","Un ange":"An angel","Des anges":"Angels",
+    "Moïse":"Moses","Abraham":"Abraham","David":"David","Salomon":"Solomon","Pierre":"Peter",
+    "Paul":"Paul","Jean":"John","Jacques":"James","Jésus":"Jesus","Marie":"Mary",
+    "Noé":"Noah","Adam":"Adam","Ève":"Eve","Élie":"Elijah","Élisée":"Elisha",
+    "Judas":"Judas","Thomas":"Thomas","André":"Andrew","Philippe":"Philip",
+    "Matthieu":"Matthew","Luc":"Luke","Marc":"Mark",
+    "Oui":"Yes","Non":"No","Vrai":"True","Faux":"False",
+    "7 jours":"7 days","3 jours":"3 days","40 jours":"40 days","7 ans":"7 years","40 ans":"40 years",
+    "La foi":"Faith","L'amour":"Love","L'espérance":"Hope","La paix":"Peace","La joie":"Joy",
+    "Le baptême":"Baptism","La prière":"Prayer","Le jeûne":"Fasting",
+    "L'eau":"Water","Le feu":"Fire","Le sang":"Blood","La lumière":"Light",
+    "Le Temple":"The Temple","La synagogue":"The synagogue","L'église":"The church",
+    "Jérusalem":"Jerusalem","Bethléem":"Bethlehem","Nazareth":"Nazareth","Égypte":"Egypt",
+    "Genèse":"Genesis","Exode":"Exodus","Psaumes":"Psalms","Proverbes":"Proverbs",
+    "Apocalypse":"Revelation","Actes":"Acts",
+    "12":"12","7":"7","3":"3","40":"40","10":"10","4":"4","66":"66",
+    "Berger":"Shepherd","Charpentier":"Carpenter","Pêcheur":"Fisherman","Roi":"King",
+    "Prophète":"Prophet","Prêtre":"Priest","Apôtre":"Apostle","Disciple":"Disciple"
+  }
+};
+function translateOpt(opt){
+  if(S.lang!=="en")return opt;
+  // Si déjà format "FR / EN"
+  if(opt.indexOf(" / ")>=0)return opt.split(" / ")[1];
+  // Chercher dans le dictionnaire
+  var trans=OPT_TRANS.fr_en[opt.trim()];
+  if(trans)return trans;
+  // Retourner l'original (souvent des noms propres ou chiffres compréhensibles)
+  return opt;
+}
+
 var DAILY=[
-{ref:"Jean 3:16",text:"Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle.",defi:"Partage ce verset avec une personne qui ne connaît pas encore Jésus aujourd'hui."},
-{ref:"Philippiens 4:13",text:"Je puis tout par celui qui me fortifie.",defi:"Face à un défi aujourd'hui, rappelle-toi ce verset et agis avec foi."},
-{ref:"Psaume 23:1",text:"L'Éternel est mon berger : je ne manquerai de rien.",defi:"Liste 3 bénédictions que Dieu t'a données et remercie-le en prière."},
-{ref:"Josué 1:9",text:"Sois fort et courageux. Ne t'effraie point et ne t'épouvante point, car l'Éternel, ton Dieu, est avec toi.",defi:"Affronte avec courage quelque chose que tu remettais à plus tard."},
-{ref:"Jérémie 29:11",text:"Car je connais les projets que j'ai formés sur vous, dit l'Éternel, projets de paix et non de malheur.",defi:"Confie à Dieu en prière un projet ou une inquiétude pour ton avenir."},
-{ref:"Romains 8:28",text:"Toutes choses concourent au bien de ceux qui aiment Dieu.",defi:"Dans une situation difficile, cherche ce que Dieu veut t'enseigner."},
-{ref:"Matthieu 6:33",text:"Cherchez premièrement le royaume et la justice de Dieu ; et toutes ces choses vous seront données par-dessus.",defi:"Commence ta journée par un temps de prière avant toute autre activité."},
-{ref:"Ésaïe 40:31",text:"Ceux qui se confient en l'Éternel renouvellent leur force. Ils prennent le vol comme les aigles.",defi:"Prends 10 minutes pour te reposer en Dieu et lire un psaume."},
-{ref:"Psaume 119:105",text:"Ta parole est une lampe à mes pieds, et une lumière sur mon sentier.",defi:"Lis un chapitre de la Bible et note ce que Dieu te dit."},
-{ref:"Proverbes 3:5-6",text:"Confie-toi en l'Éternel de tout ton cœur, et ne t'appuie pas sur ta sagesse ; reconnais-le dans toutes tes voies.",defi:"Avant toute décision aujourd'hui, demande la sagesse de Dieu en prière."},
-{ref:"Ésaïe 53:5",text:"Il était blessé pour nos péchés, brisé pour nos iniquités ; le châtiment qui nous donne la paix est tombé sur lui.",defi:"Médite sur le sacrifice de Jésus et exprime-lui ta gratitude."},
-{ref:"Hébreux 11:1",text:"Or la foi est une ferme assurance des choses qu'on espère, une démonstration de celles qu'on ne voit pas.",defi:"Identifie une chose que tu crois par foi et prie pour qu'elle se réalise."},
-{ref:"Jean 14:6",text:"Je suis le chemin, la vérité, et la vie. Nul ne vient au Père que par moi.",defi:"Témoigne à quelqu'un que Jésus est le seul chemin vers Dieu."},
-{ref:"Psaume 27:1",text:"L'Éternel est ma lumière et mon salut : de qui aurais-je crainte ?",defi:"Identifie une peur et confie-la à Dieu en prière aujourd'hui."},
-{ref:"Romains 6:23",text:"Le salaire du péché, c'est la mort ; mais le don gratuit de Dieu, c'est la vie éternelle en Jésus-Christ.",defi:"Partage le message du salut avec quelqu'un dans ton entourage."},
-{ref:"Éphésiens 2:8",text:"C'est par la grâce que vous êtes sauvés, par le moyen de la foi. Et cela ne vient pas de vous, c'est le don de Dieu.",defi:"Remercie Dieu aujourd'hui pour sa grâce gratuite dans ta vie."},
-{ref:"Psaume 46:2",text:"Dieu est pour nous un refuge et un appui, un secours qui ne manque jamais dans la détresse.",defi:"Prends 5 minutes pour prier et confier tes soucis à Dieu."},
-{ref:"2 Timothée 1:7",text:"Ce n'est pas un esprit de timidité que Dieu nous a donné, mais un esprit de force, d'amour et de sagesse.",defi:"Dans une situation qui t'effraie, agis avec l'esprit de force que Dieu t'a donné."},
-{ref:"Galates 5:22",text:"Le fruit de l'Esprit, c'est l'amour, la joie, la paix, la patience, la bonté, la bénignité, la fidélité.",defi:"Choisis un fruit de l'Esprit et applique-le concrètement aujourd'hui."},
-{ref:"Psaume 34:19",text:"L'Éternel est près de ceux qui ont le cœur brisé, et il sauve ceux qui ont l'esprit dans l'abattement.",defi:"Prie pour une personne blessée ou découragée que tu connais."},
-{ref:"Matthieu 5:16",text:"Que votre lumière brille ainsi devant les hommes, afin qu'ils voient vos bonnes œuvres.",defi:"Fais une bonne action concrète pour quelqu'un aujourd'hui."},
-{ref:"1 Jean 4:8",text:"Celui qui n'aime pas n'a pas connu Dieu, car Dieu est amour.",defi:"Exprime ton amour concrètement à ta famille ou tes amis aujourd'hui."},
-{ref:"Apocalypse 3:20",text:"Voici, je me tiens à la porte, et je frappe. Si quelqu'un entend ma voix et ouvre la porte, j'entrerai chez lui.",defi:"Ouvre ton cœur à Jésus dans un moment de prière sincère aujourd'hui."},
-{ref:"Psaume 103:12",text:"Autant l'orient est éloigné de l'occident, autant il éloigne de nous nos transgressions.",defi:"Confesse tes péchés à Dieu et reçois son pardon complet avec foi."},
-{ref:"Romains 10:17",text:"La foi vient de ce qu'on entend, et ce qu'on entend vient de la parole de Christ.",defi:"Écoute ou lis un passage de la Bible aujourd'hui pour renforcer ta foi."},
-{ref:"Matthieu 28:19",text:"Allez, faites de toutes les nations des disciples, les baptisant au nom du Père, du Fils et du Saint-Esprit.",defi:"Partage l'Évangile avec une personne de ton entourage aujourd'hui."},
-{ref:"Ésaïe 41:10",text:"Ne crains rien, car je suis avec toi ; je te fortifie, je viens à ton secours.",defi:"Présente à Dieu une situation qui t'inquiète et crois à sa présence."},
-{ref:"Jean 13:34",text:"Je vous donne un commandement nouveau : Aimez-vous les uns les autres ; comme je vous ai aimés, aimez-vous.",defi:"Réconcilie-toi avec quelqu'un avec qui tu as eu un différend."},
-{ref:"Luc 4:18",text:"L'Esprit du Seigneur est sur moi, parce qu'il m'a oint pour annoncer une bonne nouvelle aux pauvres.",defi:"Aie un geste généreux envers une personne dans le besoin aujourd'hui."},
-{ref:"Jean 11:25",text:"Je suis la résurrection et la vie. Celui qui croit en moi vivra, quand même il serait mort.",defi:"Médite sur la promesse de la vie éternelle et laisse-la transformer ta journée."}
+{ref:"Jean 3:16",text:"Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle.",texte:"For God so loved the world that he gave his only Son, that whoever believes in him should not perish but have eternal life.",defi:"Partage ce verset avec une personne qui ne connaît pas encore Jésus aujourd'hui.",defie:"Share this verse with someone who does not yet know Jesus today."},
+{ref:"Philippiens 4:13",text:"Je puis tout par celui qui me fortifie.",texte:"I can do all things through him who strengthens me.",defi:"Face à un défi aujourd'hui, rappelle-toi ce verset et agis avec foi.",defie:"Face a challenge today and remember this verse. God is your strength."},
+{ref:"Jérémie 29:11",text:"Car je connais les projets que j'ai formés sur vous, dit l'Éternel, projets de paix et non de malheur.",texte:"For I know the plans I have for you, declares the Lord, plans for welfare and not for evil, to give you a future and a hope.",defi:"Confie à Dieu en prière un projet ou une inquiétude pour ton avenir.",defie:"Trust God for what comes next in your life today."},
+{ref:"Psaume 23:1",text:"L'Éternel est mon berger : je ne manquerai de rien.",texte:"The Lord is my shepherd; I shall not want.",defi:"Liste 3 bénédictions que Dieu t'a données et remercie-le en prière.",defie:"Let God guide you today like a shepherd guides his sheep."},
+{ref:"Proverbes 3:5-6",text:"Confie-toi en l'Éternel de tout ton cœur, et ne t'appuie pas sur ta sagesse ; reconnais-le dans toutes tes voies.",texte:"Trust in the Lord with all your heart, and do not lean on your own understanding.",defi:"Avant toute décision aujourd'hui, demande la sagesse de Dieu en prière.",defie:"Make a decision today by seeking God's wisdom first."},
+{ref:"Matthieu 6:33",text:"Cherchez premièrement le royaume et la justice de Dieu ; et toutes ces choses vous seront données par-dessus.",texte:"But seek first the kingdom of God and his righteousness, and all these things will be added to you.",defi:"Commence ta journée par un temps de prière avant toute autre activité.",defie:"Put God first in one concrete way today."},
+{ref:"Romains 8:28",text:"Toutes choses concourent au bien de ceux qui aiment Dieu.",texte:"And we know that for those who love God all things work together for good, for those who are called according to his purpose.",defi:"Dans une situation difficile, cherche ce que Dieu veut t'enseigner.",defie:"See something difficult in your life as an opportunity God is using for good."},
+{ref:"Ésaïe 40:31",text:"Ceux qui se confient en l'Éternel renouvellent leur force. Ils prennent le vol comme les aigles.",texte:"But they who wait for the Lord shall renew their strength; they shall mount up with wings like eagles.",defi:"Prends 10 minutes pour te reposer en Dieu et lire un psaume.",defie:"Take a moment to wait on God in prayer before starting your day."},
+{ref:"Galates 5:22",text:"Le fruit de l'Esprit, c'est l'amour, la joie, la paix, la patience, la bonté, la bénignité, la fidélité.",texte:"But the fruit of the Spirit is love, joy, peace, patience, kindness, goodness, faithfulness.",defi:"Choisis un fruit de l'Esprit et applique-le concrètement aujourd'hui.",defie:"Choose one fruit of the Spirit to intentionally practice today."},
+{ref:"Jean 14:6",text:"Je suis le chemin, la vérité, et la vie. Nul ne vient au Père que par moi.",texte:"Jesus said to him, I am the way, and the truth, and the life. No one comes to the Father except through me.",defi:"Témoigne à quelqu'un que Jésus est le seul chemin vers Dieu.",defie:"Reflect on the fact that Jesus is the only way to the Father."},
+{ref:"Psaume 119:105",text:"Ta parole est une lampe à mes pieds, et une lumière sur mon sentier.",texte:"Your word is a lamp to my feet and a light to my path.",defi:"Lis un chapitre de la Bible et note ce que Dieu te dit.",defie:"Let a Bible verse guide a decision you make today."},
+{ref:"Josué 1:9",text:"Sois fort et courageux. Ne t'effraie point et ne t'épouvante point, car l'Éternel, ton Dieu, est avec toi.",texte:"Be strong and courageous. Do not be frightened, and do not be dismayed, for the Lord your God is with you wherever you go.",defi:"Affronte avec courage quelque chose que tu remettais à plus tard.",defie:"Take a step of courage today, God is with you."},
+{ref:"Ésaïe 41:10",text:"Ne crains rien, car je suis avec toi ; je te fortifie, je viens à ton secours.",texte:"Fear not, for I am with you; be not dismayed, for I am your God; I will strengthen you, I will help you.",defi:"Présente à Dieu une situation qui t'inquiète et crois à sa présence.",defie:"Name a fear and give it to God today."},
+{ref:"Apocalypse 3:20",text:"Voici, je me tiens à la porte, et je frappe. Si quelqu'un entend ma voix et ouvre la porte, j'entrerai chez lui.",texte:"Behold, I stand at the door and knock. If anyone hears my voice and opens the door, I will come in to him.",defi:"Ouvre ton cœur à Jésus dans un moment de prière sincère aujourd'hui.",defie:"Open your heart fully to Jesus today."}
 ];
 function getDV(){
   // Utilise la date complète (YYYY-MM-DD) pour changer à chaque minuit
@@ -1251,7 +1269,7 @@ function updateXPBar(){
   var cur=document.getElementById("xp-cur");
   var nxt=document.getElementById("xp-next");
   var fill=document.getElementById("xpfill");
-  if(badge)badge.textContent=lv.emoji+" Niveau "+lv.lvl;
+  if(badge)badge.textContent=lv.emoji+" "+(S.lang==="en"?"Level ":"Niveau ")+lv.lvl;
   if(name)name.textContent=S.lang==="en"?lv.namee:lv.name;
   if(cur)cur.textContent=xp-lv.xp;
   if(nxt)nxt.textContent=lv.next-lv.xp;
@@ -1469,10 +1487,11 @@ function renderQuiz(){
   var qleft=document.getElementById("qleft");if(qleft)qleft.textContent=left;
   if(left<=0){
     var v=getDV();
+    var verseDisplay=S.lang==="en"&&v.texte?v.texte:v.text;
     var h='<div class="qd"><div style="font-size:38px;margin-bottom:12px">⏰</div>';
     h+='<h3>'+t("quiz_done_title")+'</h3>';
     h+='<p>'+t("quiz_done_p")+'</p>';
-    h+='<div class="qdv">"'+v.text+'"<br><strong>— '+v.ref+' (Louis Segond 1910)</strong></div>';
+    h+='<div class="qdv">"'+verseDisplay+'"<br><strong>— '+v.ref+' (Louis Segond 1910)</strong></div>';
     h+='<div style="display:flex;gap:8px;justify-content:center">';
     h+='<button class="bwh" onclick="share()">📲 WhatsApp</button>';
     h+='<button class="bng" onclick="goTo(\'classement\')">🏆 '+t("cls_btn")+'</button>';
@@ -1494,7 +1513,7 @@ function renderQuiz(){
   h+='<div class="qq">'+qtext+'</div>';
   h+='<div class="olist">';
   for(var i=0;i<q.opts.length;i++){
-    var optTxt=q.opts[i];if(optTxt.indexOf(" / ")>=0){optTxt=S.lang==="en"?optTxt.split(" / ")[1]:optTxt.split(" / ")[0];}
+    var optTxt=translateOpt(q.opts[i]);
     h+='<button class="ob" onclick="ansQ('+i+')" id="o'+i+'"><span class="oi">'+("ABCD"[i])+'</span>'+optTxt+'</button>';
   }
   h+='</div><div class="fb" id="fb"></div>';
@@ -1524,7 +1543,7 @@ function ansQ(c){
   addScore(pts);
   for(var i=0;i<4;i++){var b=document.getElementById("o"+i);if(b){b.style.pointerEvents="none";if(i===q.ans)b.classList.add("ok");else if(i===c&&!ok)b.classList.add("ng");}}
   var fb=document.getElementById("fb");
-  var correctTxt=q.opts[q.ans];if(correctTxt.indexOf(" / ")>=0){correctTxt=S.lang==="en"?correctTxt.split(" / ")[1]:correctTxt.split(" / ")[0];}
+  var correctTxt=translateOpt(q.opts[q.ans]);
   var ptsMsg=pts>0?' <span style="color:var(--greend);font-weight:800">+'+pts+' pts</span>':"";
   if(fb){fb.className="fb show "+(ok?"ok":"ng");fb.innerHTML="<strong>"+(ok?t("correct"):t("wrong"))+"</strong>"+ptsMsg+" "+(ok?t("well_done"):t("good_ans")+" <strong>"+correctTxt+"</strong>")+'<div class="fv">📖 '+q.ref+' · '+q.verse+'</div>';}
   var nb=document.getElementById("nb");if(nb)nb.classList.add("show");
@@ -1792,25 +1811,28 @@ function setCLSPeriod(p){CLS_PERIOD=p;renderCls();}
 
 function renderVerset(){
   var v=getDV();var vc=document.getElementById("vcont");if(!vc)return;
-  var dateStr=new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  var en=(S.lang==="en");
+  var verseText=en&&v.texte?v.texte:v.text;
+  var verseDefi=en&&v.defie?v.defie:v.defi;
+  var dateStr=new Date().toLocaleDateString(en?"en-US":"fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   var h='<div class="vh">';
   h+='<div class="vd">📅 '+dateStr+'</div>';
-  h+='<div class="vte">"'+v.text+'"</div>';
+  h+='<div class="vte">"'+verseText+'"</div>';
   h+='<div class="vre">— '+v.ref+'</div>';
   h+='<div class="vlst">'+t("ls")+'</div>';
   h+='</div>';
   h+='<div style="background:#fff;border-radius:16px;padding:14px;box-shadow:var(--sh);border-left:4px solid var(--purple);margin-bottom:11px">';
-  h+='<h3 style="font-size:11px;font-weight:800;color:var(--purple);margin-bottom:5px">'+t("defi_title")+'</h3>';
-  h+='<p style="font-size:11px;color:var(--dark);line-height:1.6">'+v.defi+'</p></div>';
+  h+='<h3 style="font-size:11px;font-weight:800;color:var(--purple);margin-bottom:5px">'+(en?"📅 Daily Challenge":"📅 Défi du jour")+'</h3>';
+  h+='<p style="font-size:11px;color:var(--dark);line-height:1.6">'+verseDefi+'</p></div>';
   h+='<canvas id="verse-canvas" style="display:none"></canvas>';
   h+='<div style="display:flex;gap:8px">';
-  h+='<button class="bwh" style="flex:1" onclick="shareVerseAsImage()">🖼️ '+(S.lang==="fr"?"Partager en image":"Share as image")+'</button>';
-  h+='<button class="bng" style="flex:1" onclick="goTo(\'quiz\')">📖 '+(S.lang==="fr"?"Jouer au Quiz":"Play Quiz")+'</button>';
+  h+='<button class="bwh" style="flex:1" onclick="shareVerseAsImage()">🖼️ '+(en?"Share as image":"Partager en image")+'</button>';
+  h+='<button class="bng" style="flex:1" onclick="goTo(\'quiz\')">📖 '+(en?"Play Quiz":"Jouer au Quiz")+'</button>';
   h+='</div>';
   h+='<div id="verse-preview" style="margin-top:11px;display:none">';
   h+='<img id="verse-img" style="width:100%;border-radius:16px;box-shadow:var(--sh)" />';
   h+='<div style="display:flex;gap:8px;margin-top:8px">';
-  h+='<a id="verse-dl" download="verset-cev.png" class="bng" style="flex:1;text-align:center;text-decoration:none;padding:10px">⬇️ '+(S.lang==="fr"?"Télécharger":"Download")+'</a>';
+  h+='<a id="verse-dl" download="verse-cev.png" class="bng" style="flex:1;text-align:center;text-decoration:none;padding:10px">⬇️ '+(en?"Download":"Télécharger")+'</a>';
   h+='<button class="bwh" style="flex:1" onclick="shareVerseLink()">📲 WhatsApp</button>';
   h+='</div></div>';
   vc.innerHTML=h;
