@@ -650,15 +650,29 @@ async function doRegEmail(){
   var pw=document.getElementById("inp-pw").value;
   var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";
   if(!prenom||!contact||!pw){showMsg(t("err_fields"));return;}
-  showMsg("⏳ Inscription en cours...",true);
+  showMsg("⏳ "+(S.lang==="en"?"Registering...":"Inscription en cours..."),true);
   var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
+  // Inscription
   var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
-  if(!r.ok){showMsg(r.data.error_description||r.data.msg||"Erreur inscription");return;}
-  var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
+  if(!r.ok){
+    var errMsg=r.data.error_description||r.data.msg||r.data.message||"Erreur inscription";
+    if(errMsg.toLowerCase().includes("already"))errMsg=S.lang==="en"?"Email already registered. Try logging in.":"Email déjà utilisé. Essaie de te connecter.";
+    showMsg(errMsg);return;
+  }
+  var tok=r.data.access_token;
+  var uid=r.data.user?r.data.user.id:null;
+  // Si pas de token (confirmation email désactivée mais pas de session), faire un login
+  if(!tok||!uid){
+    showMsg("⏳ "+(S.lang==="en"?"Connecting...":"Connexion..."),true);
+    var lr=await sbAuth("token?grant_type=password",{email:email,password:pw});
+    if(!lr.ok){showMsg(S.lang==="en"?"Account created, please log in.":"Compte créé, connecte-toi maintenant.");return;}
+    tok=lr.data.access_token;
+    uid=lr.data.user?lr.data.user.id:null;
+  }
   if(!uid){showMsg("Erreur: pas d'utilisateur");return;}
-  createProfile(uid,prenomClean,ville,tok,pseudoClean); // non-bloquant
+  createProfile(uid,prenomClean,ville,tok,pseudoClean);
   await loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean);
 }
 
@@ -667,16 +681,21 @@ async function doRegName(){
   var pseudo=document.getElementById("inp-pseudo2").value.trim()||prenom;
   var ville=document.getElementById("inp-ville2").value.trim()||"Non precisee";
   if(!prenom){showMsg(t("err_fields"));return;}
-  showMsg("⏳ Inscription en cours...",true);
+  showMsg("⏳ "+(S.lang==="en"?"Registering...":"Inscription en cours..."),true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
   var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";
   var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";
   var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
   if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
-  var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
+  var tok=r.data.access_token;
+  var uid=r.data.user?r.data.user.id:null;
+  if(!tok&&uid){
+    var lr=await sbAuth("token?grant_type=password",{email:fakeEmail,password:fakePw});
+    if(lr.ok){tok=lr.data.access_token;uid=lr.data.user?lr.data.user.id:uid;}
+  }
   if(!uid){showMsg("Erreur creation");return;}
-  createProfile(uid,prenomClean,ville,tok,pseudoClean); // non-bloquant
+  createProfile(uid,prenomClean,ville,tok,pseudoClean);
   await loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean);
 }
 
@@ -726,15 +745,56 @@ async function getProfile(uid,tok){
   return r.data&&r.data[0]?r.data[0]:null;
 }
 
+// ── STREAK (jours consécutifs) ─────────────────────────────
+function getStreakKey(){return"cev_streak_"+(S.user?S.user.id:"");}
+function getStreak(){
+  try{
+    var d=JSON.parse(localStorage.getItem(getStreakKey())||"{}");
+    return{count:d.count||0,last:d.last||""};
+  }catch(e){return{count:0,last:""};}
+}
+function updateStreak(){
+  var today=todayStr();
+  var s=getStreak();
+  if(s.last===today)return s.count; // Déjà compté aujourd'hui
+  var yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+  var yStr=yesterday.toISOString().slice(0,10);
+  var newCount=(s.last===yStr)?s.count+1:1; // Consécutif ou reset à 1
+  try{localStorage.setItem(getStreakKey(),JSON.stringify({count:newCount,last:today}));}catch(e){}
+  return newCount;
+}
+
 async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
   pseudo=pseudo||prenom;
   S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
   S.token=tok;S.score=score||0;
   localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,pseudo:pseudo,ville:ville,score:score||0,token:tok,day:todayStr(),lang:S.lang}));
-  // Sauvegarder le push token si disponible
+  // Streak : vérifier et donner 10 XP si nouvelle journée
+  var streak=updateStreak();
+  var streakBonus=false;
+  var s=getStreak();
+  if(s.last===todayStr()&&streak>=1){
+    // Vérifier si on a déjà donné le bonus aujourd'hui
+    var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
+    if(!localStorage.getItem(bonusKey)){
+      addXP(10);
+      localStorage.setItem(bonusKey,"1");
+      streakBonus=true;
+    }
+  }
   savePushToken(uid,tok);
   document.getElementById("ao").classList.add("h");
   initApp();
+  // Afficher le popup streak si bonus donné
+  if(streakBonus&&streak>1){
+    setTimeout(function(){
+      var b=document.createElement("div");
+      b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:10px 20px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3);text-align:center";
+      b.innerHTML="🔥 "+streak+(S.lang==="en"?" days in a row!":" jours d'affilée !")+"<br><small>+10 XP</small>";
+      document.body.appendChild(b);
+      setTimeout(function(){if(b.parentNode)b.remove();},3000);
+    },1000);
+  }
 }
 
 // ── PUSH NOTIFICATIONS ─────────────────────────────────────
@@ -1997,6 +2057,10 @@ function initApp(){
     var hw=document.getElementById("home-welcome");if(hw)hw.textContent=t("welcome")+" "+S.user.prenom+" 👋";
     var ts=document.getElementById("ts");if(ts)ts.textContent="🏆 "+S.score+" pts";
     var ss=document.getElementById("ss");if(ss)ss.textContent=S.score;
+    // Streak
+    var streak=getStreak();
+    var sstreakEl=document.getElementById("sstreak");
+    if(sstreakEl)sstreakEl.textContent=streak.count>0?"🔥 "+streak.count:"—";
   }
   updateXPBar();
   if(window.speechSynthesis){
@@ -2957,8 +3021,18 @@ function toggleBibleChap(section,chap){
   var r=getBibleRead();
   if(!Array.isArray(r[section]))r[section]=[];
   var idx=r[section].indexOf(chap);
-  if(idx>-1){r[section].splice(idx,1);}
-  else{r[section].push(chap);}
+  if(idx>-1){
+    r[section].splice(idx,1); // Décocher → retirer XP
+  } else {
+    r[section].push(chap); // Cocher → +5 XP
+    addXP(5);
+    // Mini notification
+    var b=document.createElement("div");
+    b.style.cssText="position:fixed;top:80px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 14px;border-radius:14px;font-weight:700;font-size:11px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)";
+    b.textContent="📖 +5 XP";
+    document.body.appendChild(b);
+    setTimeout(function(){if(b.parentNode)b.remove();},1800);
+  }
   saveBibleRead(r);
   renderBible();
 }
