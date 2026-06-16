@@ -798,7 +798,7 @@ async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
 }
 
 // ── PUSH NOTIFICATIONS ─────────────────────────────────────
-var VAPID_PUBLIC_KEY="BEl62iUYgUivxIkv69yViEuiBIa40HI-zBpDVEP7kSJG-JNUbdEQkjT0Zz3L8R6nXqlF_h7JbVEzZRBaFxE-4g";
+var VAPID_PUBLIC_KEY="BAtnn4tKG1GkasiWnMqSmjU5xP5tmGvwnL_D_fq_q6HI0Jxn0YruIQ5T6JbIb-QCQYgTOq-36UMvdPH-yrnRqGI";
 
 async function requestPushPermission(){
   if(!('Notification' in window)||!('serviceWorker' in navigator))return false;
@@ -854,21 +854,23 @@ async function savePushToken(uid,tok){
 }
 
 async function notifyAllPlayers(roomCode,maxPlayers){
-  // Envoyer une notification à tous les joueurs via notre endpoint Supabase Edge Function
   try{
-    var msg={
-      title:"⚔️ Challenge Biblique !",
-      body:"Un challenge pour "+maxPlayers+" joueurs vient d'être créé ! Code : "+roomCode,
-      code:roomCode
-    };
-    // Appel à une Edge Function Supabase (à créer) ou stockage en base pour polling
-    await sbFetch("cev_notifications",{
+    // Appeler la Edge Function Supabase
+    await fetch(SB_URL.replace("/rest/v1","").replace("https://","https://")+"/functions/v1/send-challenge-notif",{
       method:"POST",
-      headers:{"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({type:"challenge",message:JSON.stringify(msg),created_at:new Date().toISOString()})
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+S.token,
+        "apikey":SB_KEY
+      },
+      body:JSON.stringify({
+        code:roomCode,
+        host_name:S.user.pseudo||S.user.prenom,
+        max_players:maxPlayers
+      })
     });
-    console.log("Notification envoyée");
-  }catch(e){console.log("notify err",e);}
+    console.log("Notifications envoyées pour le challenge "+roomCode);
+  }catch(e){console.log("notifyAllPlayers err",e);}
 }
 function logout(){
   clearDefiSession();
@@ -2300,8 +2302,21 @@ async function createRoom(){
   await joinRoomAsPlayer(room.id);
   saveDefiSession();
   subscribeRoom(room.id);
-  // Envoyer notification à tous les joueurs
+  // Envoyer notification push à tous les joueurs
   notifyAllPlayers(code,DEFI_SIZE);
+  // Aussi sauvegarder en base pour le polling
+  sbFetch("cev_notifications",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+S.token},
+    body:JSON.stringify({
+      type:"challenge",
+      message:JSON.stringify({
+        title:"⚔️ Challenge Biblique !",
+        body:(S.user.pseudo||S.user.prenom)+" "+(S.lang==="en"?"created a challenge for ":"crée un challenge pour ")+DEFI_SIZE+" "+(S.lang==="en"?"players! Code: ":"joueurs ! Code : ")+code,
+        code:code
+      })
+    })
+  });
   renderDefiWaiting();
 }
 
