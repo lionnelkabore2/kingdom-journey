@@ -13,6 +13,19 @@
 <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
 <title>Quiz Biblique C.E.V</title>
+<!-- OneSignal Push Notifications -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "d2f59331-4855-48b6-9c39-e236ebe11ce0",
+      safari_web_id: "web.onesignal.auto.d2f59331-4855-48b6-9c39-e236ebe11ce0",
+      notifyButton: { enable: false },
+      allowLocalhostAsSecureOrigin: true,
+    });
+  });
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -785,6 +798,17 @@ async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
   savePushToken(uid,tok);
   document.getElementById("ao").classList.add("h");
   initApp();
+  // OneSignal : associer l'utilisateur
+  try{
+    if(window.OneSignalDeferred){
+      window.OneSignalDeferred.push(async function(os){
+        try{
+          await os.Notifications.requestPermission();
+          await os.login(uid);
+        }catch(e){}
+      });
+    }
+  }catch(e){}
   // Afficher le popup streak si bonus donné
   if(streakBonus&&streak>1){
     setTimeout(function(){
@@ -798,80 +822,31 @@ async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
 }
 
 // ── PUSH NOTIFICATIONS ─────────────────────────────────────
-var VAPID_PUBLIC_KEY="BAtnn4tKG1GkasiWnMqSmjU5xP5tmGvwnL_D_fq_q6HI0Jxn0YruIQ5T6JbIb-QCQYgTOq-36UMvdPH-yrnRqGI";
-
-async function requestPushPermission(){
-  if(!('Notification' in window)||!('serviceWorker' in navigator))return false;
-  var perm=await Notification.requestPermission();
-  return perm==="granted";
-}
-
-async function registerPushSW(){
-  if(!('serviceWorker' in navigator))return null;
-  try{
-    var reg=await navigator.serviceWorker.register('/sw.js');
-    await navigator.serviceWorker.ready;
-    return reg;
-  }catch(e){console.log("SW register err",e);return null;}
-}
-
-function urlBase64ToUint8Array(base64String){
-  var padding='='.repeat((4-base64String.length%4)%4);
-  var base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
-  var rawData=window.atob(base64);
-  var outputArray=new Uint8Array(rawData.length);
-  for(var i=0;i<rawData.length;++i)outputArray[i]=rawData.charCodeAt(i);
-  return outputArray;
-}
-
-async function getPushSubscription(){
-  var reg=await registerPushSW();
-  if(!reg)return null;
-  try{
-    var sub=await reg.pushManager.subscribe({
-      userVisibleOnly:true,
-      applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-    });
-    return sub;
-  }catch(e){console.log("Push subscribe err",e);return null;}
-}
-
-async function savePushToken(uid,tok){
-  try{
-    var granted=await requestPushPermission();
-    if(!granted)return;
-    var sub=await getPushSubscription();
-    if(!sub)return;
-    var subStr=JSON.stringify(sub);
-    // Sauvegarder dans Supabase
-    await sbFetch("cev_push_tokens?on_conflict=user_id",{
-      method:"POST",
-      headers:{"Authorization":"Bearer "+tok,"Prefer":"resolution=merge-duplicates"},
-      body:JSON.stringify({user_id:uid,subscription:subStr,updated_at:new Date().toISOString()})
-    });
-    console.log("Push token saved");
-  }catch(e){console.log("savePushToken err",e);}
-}
+var OS_APP_ID="d2f59331-4855-48b6-9c39-e236ebe11ce0";
 
 async function notifyAllPlayers(roomCode,maxPlayers){
   try{
-    // Appeler la Edge Function Supabase
-    await fetch(SB_URL.replace("/rest/v1","").replace("https://","https://")+"/functions/v1/send-challenge-notif",{
+    await fetch("https://xqcaiqnivxhgcxuxgqqy.supabase.co/functions/v1/send-challenge-notif",{
       method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "Authorization":"Bearer "+S.token,
-        "apikey":SB_KEY
-      },
-      body:JSON.stringify({
-        code:roomCode,
-        host_name:S.user.pseudo||S.user.prenom,
-        max_players:maxPlayers
-      })
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+S.token,"apikey":SB_KEY},
+      body:JSON.stringify({code:roomCode,host_name:S.user.pseudo||S.user.prenom,max_players:maxPlayers,lang:S.lang})
     });
-    console.log("Notifications envoyées pour le challenge "+roomCode);
+    console.log("Challenge notification sent via OneSignal");
   }catch(e){console.log("notifyAllPlayers err",e);}
 }
+
+
+function savePushToken(uid,tok){
+  // OneSignal gère les tokens automatiquement
+  try{
+    if(window.OneSignalDeferred){
+      window.OneSignalDeferred.push(async function(os){
+        try{await os.login(uid);}catch(e){}
+      });
+    }
+  }catch(e){}
+}
+
 function logout(){
   clearDefiSession();
   localStorage.removeItem("cev_session");
