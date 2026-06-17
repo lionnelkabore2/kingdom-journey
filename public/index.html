@@ -2681,8 +2681,8 @@ function renderDefiWaiting(){
       var p=DEFI.players[i];
       var isMe=p.user_id===S.user.id;
       var isH=p.user_id===DEFI.room.host_id;
-      h+='<div class="defi-player'+(isH?" host":"")+(p.ready?" ready":"")+'"><div class="defi-av">'+(p.prenom?p.prenom[0]:"?").toUpperCase()+'</div>';
-      h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+p.prenom+(isH?' <span style="font-size:9px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;font-weight:700">HOST</span>':'');
+      h+='<div class="defi-player'+(isH?" host":"")+(p.ready?" ready":"")+'"><div class="defi-av">'+(p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase()+'</div>';
+      h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+(isH?' <span style="font-size:9px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;font-weight:700">HOST</span>':'');
       h+='</div><span style="font-size:14px">'+(p.ready?"✅":"⏳")+'</span></div>';
     }
     if(DEFI.players.length<2){
@@ -3002,8 +3002,8 @@ function renderDefiPlaying(){
     var pct=Math.min(100,Math.round((p.score/DEFI_WIN_SCORE)*100));
     h+='<div style="margin-bottom:8px">';
     h+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">';
-    h+='<div class="defi-av" style="width:26px;height:26px;font-size:10px">'+(p.prenom?p.prenom[0]:"?").toUpperCase()+'</div>';
-    h+='<span style="font-weight:700;font-size:11px;flex:1;color:var(--dark)">'+(isMe?"⭐ ":"")+p.prenom+'</span>';
+    h+='<div class="defi-av" style="width:26px;height:26px;font-size:10px">'+(p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase()+'</div>';
+    h+='<span style="font-weight:700;font-size:11px;flex:1;color:var(--dark)">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+'</span>';
     h+='<span id="score-lbl-'+p.user_id+'" style="font-weight:800;font-size:11px;color:var(--purple)">'+p.score+'/'+DEFI_WIN_SCORE+'</span>';
     h+='</div>';
     h+='<div style="height:6px;background:#E9D5FF;border-radius:4px;overflow:hidden"><div id="score-bar-'+p.user_id+'" style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--purple),var(--blue));border-radius:4px;transition:width .4s"></div></div>';
@@ -3081,7 +3081,7 @@ function renderDefiResults(){
   h+='</div>';
   if(winner){
     h+='<div style="font-size:13px;opacity:.9;margin-top:4px">';
-    h+=(lbl?"Vainqueur : ":"Winner: ")+winner.prenom+' · '+winner.score+' pts';
+    h+=(lbl?"Vainqueur : ":"Winner: ")+(winner.pseudo||winner.prenom)+' · '+winner.score+' pts';
     h+='</div>';
   }
   if(isWinner){
@@ -3101,7 +3101,7 @@ function renderDefiResults(){
     var p=sorted[i];var isMe=p.user_id===S.user.id;
     var isW=p.user_id===(winner&&winner.user_id);
     h+='<div class="defi-player'+(isW?" host":"")+'"><div class="defi-av">'+(medals[i]||String(i+1))+'</div>';
-    h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+p.prenom+(isW?' <span class="first-badge">👑 '+(lbl?"GAGNANT":"WINNER")+'</span>':'')+'</div>';
+    h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+(isW?' <span class="first-badge">👑 '+(lbl?"GAGNANT":"WINNER")+'</span>':'')+'</div>';
     h+='<div class="defi-pscore">'+p.score+' pts</div></div>';
   }
   h+='</div>';
@@ -3142,7 +3142,7 @@ function shareDefiResult(){
   var sorted=DEFI.players.slice().sort(function(a,b){return b.score-a.score;});
   var txt=(S.lang==="fr"?"⚔️ Résultats du Challenge Biblique C.E.V\n\n":"⚔️ Bible Challenge C.E.V Results\n\n");
   var medals=["🥇","🥈","🥉"];
-  for(var i=0;i<Math.min(3,sorted.length);i++){txt+=(medals[i]||String(i+1))+" "+sorted[i].prenom+" · "+sorted[i].score+" pts\n";}
+  for(var i=0;i<Math.min(3,sorted.length);i++){txt+=(medals[i]||String(i+1))+" "+(sorted[i].pseudo||sorted[i].prenom)+" · "+sorted[i].score+" pts\n";}
   txt+="\n✝️ Quiz Biblique C.E.V\n👉 https://kingdom-journey.vercel.app";
   if(navigator.share)navigator.share({title:"Quiz Biblique C.E.V",text:txt});
   else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
