@@ -20,9 +20,21 @@
   OneSignalDeferred.push(async function(OneSignal) {
     await OneSignal.init({
       appId: "d2f59331-4855-48b6-9c39-e236ebe11ce0",
-      safari_web_id: "web.onesignal.auto.d2f59331-4855-48b6-9c39-e236ebe11ce0",
       notifyButton: { enable: false },
       allowLocalhostAsSecureOrigin: true,
+      promptOptions: {
+        slidedown: {
+          prompts: [{
+            type: "push",
+            autoPrompt: false,
+            text: {
+              actionMessage: "Reçois les notifications de challenge biblique !",
+              acceptButton: "Autoriser 🙏",
+              cancelButton: "Non merci"
+            }
+          }]
+        }
+      }
     });
   });
 </script>
@@ -651,9 +663,11 @@ async function doAuth(){
       if(S.opt==="perm")await doLogin();
       else await doLoginQuick();
     }
-  }catch(e){showMsg("Erreur: "+e.message);}
-  if(btn){btn.disabled=false;}
-  showAuthForm();
+  }catch(e){
+    showMsg("Erreur: "+e.message);
+    if(btn){btn.disabled=false;showAuthForm();}
+  }
+  // Ne PAS réactiver le bouton ni showAuthForm ici — loginSuccess s'en charge
 }
 
 async function doRegEmail(){
@@ -778,46 +792,55 @@ function updateStreak(){
 }
 
 async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
-  pseudo=pseudo||prenom;
-  S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
-  S.token=tok;S.score=score||0;
-  localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,pseudo:pseudo,ville:ville,score:score||0,token:tok,day:todayStr(),lang:S.lang}));
-  // Streak : vérifier et donner 10 XP si nouvelle journée
-  var streak=updateStreak();
-  var streakBonus=false;
-  var s=getStreak();
-  if(s.last===todayStr()&&streak>=1){
-    // Vérifier si on a déjà donné le bonus aujourd'hui
-    var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
-    if(!localStorage.getItem(bonusKey)){
-      addXP(10);
-      localStorage.setItem(bonusKey,"1");
-      streakBonus=true;
-    }
-  }
-  savePushToken(uid,tok);
-  document.getElementById("ao").classList.add("h");
-  initApp();
-  // OneSignal : associer l'utilisateur
   try{
-    if(window.OneSignalDeferred){
-      window.OneSignalDeferred.push(async function(os){
-        try{
-          await os.Notifications.requestPermission();
-          await os.login(uid);
-        }catch(e){}
-      });
-    }
-  }catch(e){}
-  // Afficher le popup streak si bonus donné
-  if(streakBonus&&streak>1){
+    pseudo=pseudo||prenom;
+    S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
+    S.token=tok;
+    S.score=score||0;
+    try{localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,pseudo:pseudo,ville:ville,score:score||0,token:tok,day:todayStr(),lang:S.lang}));}catch(e){}
+    // Streak
+    try{
+      var streak=updateStreak();
+      var s=getStreak();
+      if(s.last===todayStr()&&streak>=1){
+        var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
+        if(!localStorage.getItem(bonusKey)){
+          addXP(10);
+          localStorage.setItem(bonusKey,"1");
+          setTimeout(function(){
+            var b=document.createElement("div");
+            b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:10px 20px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3);text-align:center";
+            b.innerHTML="🔥 "+streak+(S.lang==="en"?" day(s) in a row!":" jour(s) d'affilée !")+"<br><small>+10 XP</small>";
+            document.body.appendChild(b);
+            setTimeout(function(){if(b.parentNode)b.remove();},3000);
+          },1500);
+        }
+      }
+    }catch(e){}
+    // Masquer l'écran auth
+    var ao=document.getElementById("ao");
+    if(ao)ao.classList.add("h");
+    // Lancer l'app
+    initApp();
+    // OneSignal : demander permission après 3s
     setTimeout(function(){
-      var b=document.createElement("div");
-      b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:10px 20px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3);text-align:center";
-      b.innerHTML="🔥 "+streak+(S.lang==="en"?" days in a row!":" jours d'affilée !")+"<br><small>+10 XP</small>";
-      document.body.appendChild(b);
-      setTimeout(function(){if(b.parentNode)b.remove();},3000);
-    },1000);
+      try{
+        if(window.OneSignalDeferred){
+          window.OneSignalDeferred.push(async function(os){
+            try{
+              var perm=os.Notifications.permission;
+              if(!perm)await os.Slidedown.promptPush();
+              await os.login(uid);
+            }catch(e){}
+          });
+        }
+      }catch(e){}
+    },3000);
+  }catch(e){
+    console.log("loginSuccess error:",e);
+    // En cas d'erreur, forcer l'affichage de l'app quand même
+    try{var ao=document.getElementById("ao");if(ao)ao.classList.add("h");}catch(e2){}
+    try{initApp();}catch(e2){}
   }
 }
 
@@ -1249,8 +1272,123 @@ hard:[
 {q:"Selon Hébreux 4:12, la Parole de Dieu est plus tranchante que quoi ?",qe:"According to Hebrews 4:12, what is God's Word sharper than?",opts:["Une flèche","Une épée à deux tranchants / A double-edged sword","Un rasoir","Un couteau de guerrier"],ans:1,ref:"Hébreux 4:12",verse:"La parole de Dieu est vivante et efficace, plus tranchante qu'une épée quelconque à deux tranchants. — Hébreux 4:12"},
 {q:"Quelle est la promesse centrale de l'Évangile selon Jean 11:25 ?",qe:"What is the central promise of the Gospel according to John 11:25?",opts:["La guérison","La résurrection et la vie / The resurrection and the life","La paix","La sagesse"],ans:1,ref:"Jean 11:25",verse:"Je suis la résurrection et la vie. Celui qui croit en moi vivra, quand même il serait mort. — Jean 11:25"},
 {q:"Selon Luc 4:18, quelle est la mission de Jésus selon l'Esprit de l'Éternel ?",qe:"According to Luke 4:18, what is Jesus' mission according to the Spirit?",opts:["Juger les nations","Annoncer la bonne nouvelle aux pauvres / Announce good news to the poor","Bâtir le Temple","Écrire la loi"],ans:1,ref:"Luc 4:18",verse:"L'Esprit du Seigneur est sur moi, parce qu'il m'a oint pour annoncer une bonne nouvelle aux pauvres. — Luc 4:18"},
-{q:"Quel est le sens de la Transfiguration de Jésus selon Matthieu 17 ?",qe:"What is the meaning of Jesus' Transfiguration according to Matthew 17?",opts:["Une hallucination des disciples","Une révélation de sa nature divine / Revelation of his divine nature","Un miracle ordinaire","Une vision prophétique"],ans:1,ref:"Matthieu 17:2",verse:"Il fut transfiguré devant eux ; son visage resplendit comme le soleil. — Matthieu 17:2"}
+{q:"Quel est le sens de la Transfiguration de Jésus selon Matthieu 17 ?",qe:"What is the meaning of Jesus' Transfiguration according to Matthew 17?",opts:["Une hallucination des disciples","Une révélation de sa nature divine / Revelation of his divine nature","Un miracle ordinaire","Une vision prophétique"],ans:1,ref:"Matthieu 17:2",verse:"Il fut transfiguré devant eux ; son visage resplendit comme le soleil. — Matthieu 17:2"},
+{q:"Qui a nommé les animaux dans le jardin d'Éden ?",qe:"Who named the animals in the Garden of Eden?",opts:["Dieu / God","Adam","Ève / Eve","Les deux / Both"],ans:1,ref:"Genèse 2:19",verse:"L'Éternel Dieu forma... il les amena vers l'homme, pour voir comment il les appellerait. — Genèse 2:19"},
+{q:"Quel disciple a écrit trois épîtres et un évangile ?",qe:"Which disciple wrote three epistles and one gospel?",opts:["Pierre / Peter","Paul","Jean / John","Matthieu / Matthew"],ans:2,ref:"—",verse:"Jean l'apôtre a écrit l'Évangile de Jean, 1 Jean, 2 Jean et 3 Jean."},
+{q:"Combien de psaumes David a-t-il écrits ?",qe:"How many psalms did David write?",opts:["50","73","100","150"],ans:1,ref:"—",verse:"David est crédité d'avoir écrit 73 des 150 psaumes."},
+{q:"Quel est le nom du premier juge femme d'Israël ?",qe:"What is the name of the first female judge of Israel?",opts:["Ruth","Esther","Déborah / Deborah","Rahab"],ans:2,ref:"Juges 4:4",verse:"Déborah, femme prophétesse... était juge d'Israël en ce temps-là. — Juges 4:4"},
+{q:"Selon Jean 14:6, que dit Jésus être le chemin, la vérité et la vie ?",qe:"According to John 14:6, what does Jesus say he is the way, the truth and the life?",opts:["C'est lui seul / He alone","Avec ses disciples / With his disciples","Par la prière / Through prayer","Par la loi / Through the law"],ans:0,ref:"Jean 14:6",verse:"Je suis le chemin, la vérité, et la vie. Nul ne vient au Père que par moi. — Jean 14:6"},
+{q:"Quel est le dernier livre de la Bible ?",qe:"What is the last book of the Bible?",opts:["Jude","3 Jean / 3 John","Hébreux / Hebrews","Apocalypse / Revelation"],ans:3,ref:"—",verse:"L'Apocalypse (Révélation) est le dernier livre de la Bible."},
+// ── QUESTIONS SUPPLÉMENTAIRES ──────────────────────────────
+{q:"Quel est le nom de la femme de Job ?",qe:"What is the name of Job's wife?",opts:["Rachel","Sara","N'est pas mentionnée / Not mentioned","Dalila / Delilah"],ans:2,ref:"Job 2:9",verse:"La femme de Job n'est pas nommée dans le livre de Job."},
+{q:"Combien de livres y a-t-il dans la Bible ?",qe:"How many books are in the Bible?",opts:["66","73","39","27"],ans:0,ref:"—",verse:"La Bible protestante contient 66 livres : 39 dans l'AT et 27 dans le NT."},
+{q:"Qui a écrit le livre de l'Apocalypse ?",qe:"Who wrote the book of Revelation?",opts:["Paul","Pierre / Peter","Jean / John","Moïse / Moses"],ans:2,ref:"Apocalypse 1:1",verse:"La révélation de Jésus-Christ... il l'a déclarée... à son serviteur Jean. — Apocalypse 1:1"},
+{q:"Où Jésus a-t-il été tenté par Satan ?",qe:"Where was Jesus tempted by Satan?",opts:["En Galilée / In Galilee","Dans le désert / In the desert","À Jérusalem / In Jerusalem","Au jardin de Gethsémané / In Gethsemane"],ans:1,ref:"Matthieu 4:1",verse:"Jésus fut emmené par l'Esprit dans le désert, pour être tenté par le diable. — Matthieu 4:1"},
+{q:"Quel apôtre a marché sur l'eau avec Jésus ?",qe:"Which apostle walked on water with Jesus?",opts:["Jean / John","André / Andrew","Pierre / Peter","Jacques / James"],ans:2,ref:"Matthieu 14:29",verse:"Et Pierre sortit de la barque, et marcha sur les eaux. — Matthieu 14:29"},
+{q:"Qui était le père d'Abraham ?",qe:"Who was Abraham's father?",opts:["Noé / Noah","Térach / Terah","Sem / Shem","Nahor"],ans:1,ref:"Genèse 11:26",verse:"Térach vécut soixante-dix ans, et il engendra Abram. — Genèse 11:26"},
+{q:"Combien de jours Lazare était-il mort avant d'être ressuscité ?",qe:"How many days was Lazarus dead before being raised?",opts:["1 jour / 1 day","2 jours / 2 days","3 jours / 3 days","4 jours / 4 days"],ans:3,ref:"Jean 11:39",verse:"Lazare était dans le tombeau depuis quatre jours. — Jean 11:17"},
+{q:"Quel roi a fait construire le Temple de Jérusalem ?",qe:"Which king built the Temple in Jerusalem?",opts:["David","Salomon / Solomon","Josias / Josiah","Ézéchias / Hezekiah"],ans:1,ref:"1 Rois 6:1",verse:"Salomon construisit le temple. — 1 Rois 6:1"},
+{q:"Comment s'appelait le père de Jean-Baptiste ?",qe:"What was John the Baptist's father's name?",opts:["Élie / Elijah","Zacharie / Zechariah","Siméon / Simeon","Joseph"],ans:1,ref:"Luc 1:13",verse:"Ta femme Élisabeth t'enfantera un fils, et tu lui donneras le nom de Jean. — Luc 1:13"},
+{q:"Quel est le premier miracle de Jésus ?",qe:"What was Jesus' first miracle?",opts:["Guérir un aveugle / Healing a blind man","Changer l'eau en vin / Water into wine","Marcher sur l'eau / Walking on water","Ressusciter Lazare / Raising Lazarus"],ans:1,ref:"Jean 2:11",verse:"Ce miracle est le premier que Jésus accomplit. — Jean 2:11"},
+{q:"Qui a baptisé Jésus ?",qe:"Who baptized Jesus?",opts:["Pierre / Peter","Jean-Baptiste / John the Baptist","Jean l'apôtre / John the apostle","André / Andrew"],ans:1,ref:"Matthieu 3:13",verse:"Jésus vint de la Galilée au Jourdain vers Jean, pour être baptisé par lui. — Matthieu 3:13"},
+{q:"Combien d'apôtres Jésus a-t-il choisis ?",qe:"How many apostles did Jesus choose?",opts:["7","10","12","70"],ans:2,ref:"Matthieu 10:1",verse:"Jésus appela ses douze disciples. — Matthieu 10:1"},
+{q:"Quel est le dernier livre de l'Ancien Testament ?",qe:"What is the last book of the Old Testament?",opts:["Zacharie / Zechariah","Aggée / Haggai","Malachie / Malachi","Joël / Joel"],ans:2,ref:"—",verse:"Malachie est le dernier livre de l'Ancien Testament."},
+{q:"Qui a vendu Joseph à des marchands ?",qe:"Who sold Joseph to merchants?",opts:["Benjamin","Ses frères / His brothers","Son père / His father","Potiphar"],ans:1,ref:"Genèse 37:28",verse:"Ses frères vendirent Joseph aux Ismaélites pour vingt pièces d'argent. — Genèse 37:28"},
+{q:"Quel est le plus long chapitre de la Bible ?",qe:"What is the longest chapter in the Bible?",opts:["Psaume 119 / Psalm 119","Ésaïe 53 / Isaiah 53","Genèse 1 / Genesis 1","Jean 17 / John 17"],ans:0,ref:"—",verse:"Le Psaume 119 est le plus long chapitre de la Bible avec 176 versets."},
+{q:"Quelle femme a coupé les cheveux de Samson ?",qe:"Which woman cut Samson's hair?",opts:["Rahab","Ruth","Dalila / Delilah","Déborah / Deborah"],ans:2,ref:"Juges 16:19",verse:"Elle le fit raser et rendit son affaiblissement complet. — Juges 16:19"},
+{q:"Quel oiseau Noé envoya-t-il en premier de l'arche ?",qe:"What bird did Noah first send from the ark?",opts:["Une colombe / A dove","Un corbeau / A raven","Un aigle / An eagle","Un moineau / A sparrow"],ans:1,ref:"Genèse 8:7",verse:"Il lâcha un corbeau, qui s'en alla, et alla et vint. — Genèse 8:7"},
+{q:"Quelle est la signification du nom Emmanuel ?",qe:"What does the name Emmanuel mean?",opts:["Fils de Dieu / Son of God","Dieu avec nous / God with us","Sauveur / Savior","Le Seigneur règne / The Lord reigns"],ans:1,ref:"Matthieu 1:23",verse:"Emmanuel, ce qui signifie Dieu avec nous. — Matthieu 1:23"},
+{q:"Qui a dit 'Que ta volonté soit faite' au jardin de Gethsémané ?",qe:"Who said 'Your will be done' in the Garden of Gethsemane?",opts:["Pierre / Peter","Marie-Madeleine / Mary Magdalene","Jésus / Jesus","Jean / John"],ans:2,ref:"Matthieu 26:42",verse:"Non pas comme je veux, mais comme tu veux. — Matthieu 26:42"},
+{q:"Combien de psaumes y a-t-il dans la Bible ?",qe:"How many psalms are in the Bible?",opts:["100","119","150","176"],ans:2,ref:"—",verse:"Le livre des Psaumes contient 150 psaumes."},
+{q:"Qui était le beau-père de Moïse ?",qe:"Who was Moses' father-in-law?",opts:["Aaron","Caleb","Jéthro / Jethro","Josué / Joshua"],ans:2,ref:"Exode 3:1",verse:"Moïse gardait le troupeau de Jéthro, son beau-père. — Exode 3:1"},
+{q:"Dans quelle ville Jésus a-t-il transformé l'eau en vin ?",qe:"In which city did Jesus turn water into wine?",opts:["Capharnaüm / Capernaum","Cana","Nazareth","Béthanie / Bethany"],ans:1,ref:"Jean 2:1",verse:"Il y eut des noces à Cana en Galilée. — Jean 2:1"},
+{q:"Qui a écrit le Cantique des Cantiques ?",qe:"Who wrote the Song of Solomon?",opts:["David","Moïse / Moses","Salomon / Solomon","Ézéchiel / Ezekiel"],ans:2,ref:"Cantique 1:1",verse:"Cantique des cantiques, de Salomon. — Cantique 1:1"},
+{q:"Quel prophète a été avalé par un grand poisson ?",qe:"Which prophet was swallowed by a great fish?",opts:["Amos","Michée / Micah","Osée / Hosea","Jonas / Jonah"],ans:3,ref:"Jonas 1:17",verse:"L'Éternel fit venir un grand poisson pour avaler Jonas. — Jonas 1:17"},
+{q:"Combien de jours Jonas est-il resté dans le ventre du poisson ?",qe:"How many days was Jonah in the belly of the fish?",opts:["1 jour / 1 day","2 jours / 2 days","3 jours / 3 days","7 jours / 7 days"],ans:2,ref:"Jonas 1:17",verse:"Jonas fut dans le ventre du poisson trois jours et trois nuits. — Jonas 1:17"},
+{q:"Quelle est la première des Dix Commandements ?",qe:"What is the first of the Ten Commandments?",opts:["Ne tue pas / Do not kill","Tu n'auras pas d'autres dieux / No other gods","Honore ton père / Honor your father","Ne vole pas / Do not steal"],ans:1,ref:"Exode 20:3",verse:"Tu n'auras pas d'autres dieux devant ma face. — Exode 20:3"},
+{q:"Qui a écrit le livre de Job ?",qe:"Who wrote the book of Job?",opts:["Job lui-même / Job himself","Moïse / Moses","Auteur inconnu / Unknown author","Salomon / Solomon"],ans:2,ref:"—",verse:"L'auteur du livre de Job est inconnu."},
+{q:"Combien de livres Paul a-t-il écrits dans le NT ?",qe:"How many books did Paul write in the NT?",opts:["7","11","13","15"],ans:2,ref:"—",verse:"Paul est généralement crédité d'avoir écrit 13 épîtres du NT."},
+{q:"Quel est le plus court verset de la Bible ?",qe:"What is the shortest verse in the Bible?",opts:["Dieu est amour / God is love","Jésus pleura / Jesus wept","Priez sans cesse / Pray always","Réjouissez-vous / Rejoice"],ans:1,ref:"Jean 11:35",verse:"Jésus pleura. — Jean 11:35"},
+{q:"Qui était Melchisédech ?",qe:"Who was Melchizedek?",opts:["Un roi et sacrificateur / A king and priest","Un prophète / A prophet","Un juge d'Israël / A judge of Israel","Un ange / An angel"],ans:0,ref:"Genèse 14:18",verse:"Melchisédech, roi de Salem, offrit du pain et du vin : il était sacrificateur du Dieu Très-Haut. — Genèse 14:18"},
+{q:"Quel est le livre le plus long de la Bible ?",qe:"What is the longest book in the Bible?",opts:["Genèse / Genesis","Ésaïe / Isaiah","Jérémie / Jeremiah","Psaumes / Psalms"],ans:3,ref:"—",verse:"Le livre des Psaumes est le plus long de la Bible."},
+{q:"Qui a remplacé Judas parmi les apôtres ?",qe:"Who replaced Judas among the apostles?",opts:["Paul","Barnabas","Matthias","Stéphane / Stephen"],ans:2,ref:"Actes 1:26",verse:"Le sort tomba sur Matthias, qui fut associé aux onze apôtres. — Actes 1:26"},
+{q:"Où Paul a-t-il eu sa vision sur le chemin de Damas ?",qe:"Where did Paul have his vision on the road to Damascus?",opts:["À Jérusalem / In Jerusalem","Sur la route de Damas / On the road to Damascus","En prison / In prison","Au Temple / In the Temple"],ans:1,ref:"Actes 9:3",verse:"Comme il était en chemin, et s'approchait de Damas, il fut tout à coup environné d'une lumière. — Actes 9:3"},
+{q:"Quel est le nom de la femme de Pilate ?",qe:"What is the name of Pilate's wife?",opts:["Claudia","Lydie / Lydia","Priscille / Priscilla","Son nom n'est pas donné / Not named"],ans:3,ref:"Matthieu 27:19",verse:"Sa femme lui fit dire: Qu'il n'y ait rien entre toi et ce juste. — Matthieu 27:19"},
+{q:"Combien d'hommes Samson a-t-il tués avec une mâchoire d'âne ?",qe:"How many men did Samson kill with a donkey's jawbone?",opts:["100","500","1000","3000"],ans:2,ref:"Juges 15:15",verse:"Samson trouva une mâchoire d'âne... et il frappa mille hommes. — Juges 15:15"},
+{q:"Qui était le premier juge d'Israël ?",qe:"Who was the first judge of Israel?",opts:["Déborah / Deborah","Gédéon / Gideon","Otniel / Othniel","Samson"],ans:2,ref:"Juges 3:9",verse:"L'Éternel suscita un libérateur aux enfants d'Israël... Otniel. — Juges 3:9"},
+{q:"Quel était le métier de Zachée ?",qe:"What was Zacchaeus's occupation?",opts:["Pêcheur / Fisherman","Collecteur d'impôts / Tax collector","Berger / Shepherd","Soldat / Soldier"],ans:1,ref:"Luc 19:2",verse:"Zachée était un chef des péagers et il était riche. — Luc 19:2"},
+{q:"Combien de femmes Salomon avait-il ?",qe:"How many wives did Solomon have?",opts:["100","300","700","1000"],ans:2,ref:"1 Rois 11:3",verse:"Salomon eut sept cents femmes de condition princière. — 1 Rois 11:3"},
+{q:"Qui était le grand-père de David ?",qe:"Who was David's grandfather?",opts:["Boaz","Obed","Ishaï / Jesse","Salma"],ans:1,ref:"Ruth 4:17",verse:"On lui donna le nom d'Obed. C'est le père d'Ishaï, père de David. — Ruth 4:17"},
+{q:"Quel prophète a annoncé la naissance de Jean-Baptiste ?",qe:"Which prophet announced the birth of John the Baptist?",opts:["Ésaïe / Isaiah","Malachie / Malachi","Michée / Micah","Zacharie / Zechariah"],ans:1,ref:"Malachie 4:5",verse:"Je vous enverrai Élie le prophète. — Malachie 4:5"},
+{q:"Que signifie le mot 'Amen' ?",qe:"What does the word 'Amen' mean?",opts:["Gloire à Dieu / Glory to God","Qu'il en soit ainsi / So be it","Alleluia","Merci / Thank you"],ans:1,ref:"—",verse:"Amen est un mot hébreu signifiant 'qu'il en soit ainsi' ou 'en vérité'."},
+{q:"Quel animal a parlé à Balaam ?",qe:"What animal spoke to Balaam?",opts:["Un serpent / A serpent","Un lion / A lion","Une ânesse / A donkey","Un corbeau / A raven"],ans:2,ref:"Nombres 22:28",verse:"L'Éternel ouvrit la bouche de l'ânesse. — Nombres 22:28"},
+{q:"Combien de fois Pierre a-t-il renié Jésus ?",qe:"How many times did Peter deny Jesus?",opts:["1","2","3","7"],ans:2,ref:"Matthieu 26:75",verse:"Avant que le coq chante, tu me renieras trois fois. — Matthieu 26:34"},
+{q:"Qui a rédigé l'Évangile de Luc ?",qe:"Who wrote the Gospel of Luke?",opts:["Un médecin / A doctor","Un pêcheur / A fisherman","Un collecteur d'impôts / A tax collector","Un pharisien / A Pharisee"],ans:0,ref:"Colossiens 4:14",verse:"Luc, le médecin bien-aimé. — Colossiens 4:14"},
+{q:"Quel est le nombre de la bête dans l'Apocalypse ?",qe:"What is the number of the beast in Revelation?",opts:["616","666","777","888"],ans:1,ref:"Apocalypse 13:18",verse:"Le nombre de la bête... c'est le nombre d'un homme, et son nombre est six cent soixante-six. — Apocalypse 13:18"},
+{q:"Qui a trahi Jésus pour 30 pièces d'argent ?",qe:"Who betrayed Jesus for 30 pieces of silver?",opts:["Pierre / Peter","Thomas","Judas Iscariote / Judas Iscariot","Barabbas"],ans:2,ref:"Matthieu 26:15",verse:"Ils lui comptèrent trente pièces d'argent. — Matthieu 26:15"},
+{q:"Dans quel fleuve Jean baptisait-il ?",qe:"In which river did John baptize?",opts:["Le Nil / The Nile","L'Euphrate / The Euphrates","Le Gihon / The Gihon","Le Jourdain / The Jordan"],ans:3,ref:"Matthieu 3:6",verse:"Ils se faisaient baptiser par lui dans le fleuve du Jourdain. — Matthieu 3:6"},
+{q:"Qui était Barnabas ?",qe:"Who was Barnabas?",opts:["Un apôtre de Jésus / An apostle of Jesus","Un compagnon de Paul / A companion of Paul","Un grand prêtre / A high priest","Un pharisien / A Pharisee"],ans:1,ref:"Actes 11:25",verse:"Barnabas alla à Tarse pour chercher Saul. — Actes 11:25"},
+{q:"Combien de langues ont été représentées à la Pentecôte ?",qe:"How many languages were represented at Pentecost?",opts:["7","12","Plusieurs / Many","70"],ans:2,ref:"Actes 2:4",verse:"Ils commencèrent à parler en d'autres langues. — Actes 2:4"},
+{q:"Qui a oint les pieds de Jésus avec du parfum ?",qe:"Who anointed Jesus' feet with perfume?",opts:["Marie-Madeleine / Mary Magdalene","Marie de Béthanie / Mary of Bethany","Marthe / Martha","Salomé / Salome"],ans:1,ref:"Jean 12:3",verse:"Marie prit une livre de parfum de nard pur... et en oignit les pieds de Jésus. — Jean 12:3"},
+{q:"Quel est le nom de la femme de Moïse ?",qe:"What is the name of Moses' wife?",opts:["Miryam / Miriam","Rahab","Séphora / Zipporah","Abigaïl / Abigail"],ans:2,ref:"Exode 2:21",verse:"Moïse consentit à rester chez cet homme, qui lui donna sa fille Séphora. — Exode 2:21"},
+{q:"Qui a écrit les Lamentations ?",qe:"Who wrote Lamentations?",opts:["Ésaïe / Isaiah","Jérémie / Jeremiah","Daniel","Ézéchiel / Ezekiel"],ans:1,ref:"—",verse:"Les Lamentations sont traditionnellement attribuées au prophète Jérémie."},
+{q:"Combien de portes avait la Nouvelle Jérusalem ?",qe:"How many gates did the New Jerusalem have?",opts:["7","10","12","24"],ans:2,ref:"Apocalypse 21:12",verse:"La ville avait une grande et haute muraille avec douze portes. — Apocalypse 21:12"},
+{q:"Qui était l'ange qui a annoncé la naissance de Jésus à Marie ?",qe:"Which angel announced the birth of Jesus to Mary?",opts:["Michel / Michael","Gabriel","Raphaël / Raphael","Uriel"],ans:1,ref:"Luc 1:26",verse:"L'ange Gabriel fut envoyé par Dieu dans une ville de Galilée. — Luc 1:26"},
+{q:"Quel roi d'Israël a fait construire le veau d'or ?",qe:"Which king of Israel made the golden calf?",opts:["Saül / Saul","David","Jéroboam / Jeroboam","Achab / Ahab"],ans:2,ref:"1 Rois 12:28",verse:"Jéroboam fit deux veaux d'or. — 1 Rois 12:28"},
+{q:"Quelle est la signification du nom 'Jésus' ?",qe:"What does the name 'Jesus' mean?",opts:["Fils de Dieu / Son of God","Dieu avec nous / God with us","L'Éternel sauve / The LORD saves","Prince de paix / Prince of peace"],ans:2,ref:"Matthieu 1:21",verse:"Tu lui donneras le nom de Jésus; car c'est lui qui sauvera son peuple. — Matthieu 1:21"},
+{q:"Combien d'années les Israélites ont-ils erré dans le désert ?",qe:"How many years did the Israelites wander in the desert?",opts:["20 ans / 20 years","40 ans / 40 years","70 ans / 70 years","400 ans / 400 years"],ans:1,ref:"Nombres 14:33",verse:"Vos fils seront bergers au désert pendant quarante ans. — Nombres 14:33"},
+{q:"Quel est le premier livre du Nouveau Testament ?",qe:"What is the first book of the New Testament?",opts:["Marc / Mark","Luc / Luke","Matthieu / Matthew","Jean / John"],ans:2,ref:"—",verse:"Matthieu est le premier des quatre Évangiles et donc le premier livre du NT."},
+{q:"Quel disciple a douté de la résurrection de Jésus ?",qe:"Which disciple doubted the resurrection of Jesus?",opts:["Pierre / Peter","Jean / John","Thomas","André / Andrew"],ans:2,ref:"Jean 20:25",verse:"Si je ne vois dans ses mains la marque des clous... je ne croirai point. — Jean 20:25"},
+{q:"Quelle femme gentille est mentionnée dans la généalogie de Jésus ?",qe:"Which Gentile woman is mentioned in Jesus' genealogy?",opts:["Dalila / Delilah","Rahab","Jézabel / Jezebel","Athalie / Athaliah"],ans:1,ref:"Matthieu 1:5",verse:"Salmon engendra Boaz, de Rahab. — Matthieu 1:5"},
+{q:"Quel empire a détruit le premier Temple de Jérusalem ?",qe:"Which empire destroyed the first Temple of Jerusalem?",opts:["L'empire romain / Roman Empire","L'empire perse / Persian Empire","L'empire babylonien / Babylonian Empire","L'empire assyrien / Assyrian Empire"],ans:2,ref:"2 Rois 25:9",verse:"Nabuzaradan brûla la maison de l'Éternel. — 2 Rois 25:9"},
+{q:"Combien de jours Jésus a-t-il prié et jeûné dans le désert ?",qe:"How many days did Jesus pray and fast in the desert?",opts:["3 jours / 3 days","7 jours / 7 days","30 jours / 30 days","40 jours / 40 days"],ans:3,ref:"Matthieu 4:2",verse:"Il jeûna quarante jours et quarante nuits. — Matthieu 4:2"},
+{q:"Qui a écrit l'Épître aux Hébreux ?",qe:"Who wrote the Epistle to the Hebrews?",opts:["Paul","Apollos","Auteur inconnu / Unknown","Barnabas"],ans:2,ref:"—",verse:"L'auteur de l'Épître aux Hébreux reste inconnu."},
+{q:"Quel est le nom de la reine qui a rendu visite à Salomon ?",qe:"What is the name of the queen who visited Solomon?",opts:["La reine de Saba / Queen of Sheba","La reine Esther / Queen Esther","La reine Jézabel / Queen Jezebel","La reine Vasthi / Queen Vashti"],ans:0,ref:"1 Rois 10:1",verse:"La reine de Saba apprit la renommée de Salomon et vint l'éprouver. — 1 Rois 10:1"},
+{q:"Selon Proverbes 31, quel est le prix d'une femme de valeur ?",qe:"According to Proverbs 31, what is the price of a virtuous woman?",opts:["De l'or / Gold","Des rubis / Rubies","Des diamants / Diamonds","Des perles / Pearls"],ans:1,ref:"Proverbes 31:10",verse:"Qui trouvera une femme vertueuse ? Elle a bien plus de valeur que les perles. — Proverbes 31:10"},
+{q:"Quel est le dernier mot de la Bible ?",qe:"What is the last word of the Bible?",opts:["Amen","Alléluia / Alleluia","Gloire / Glory","Jésus / Jesus"],ans:0,ref:"Apocalypse 22:21",verse:"Que la grâce du Seigneur Jésus soit avec tous. Amen. — Apocalypse 22:21"},
+{q:"Dans quel livre trouve-t-on les béatitudes ?",qe:"In which book are the Beatitudes found?",opts:["Marc / Mark","Matthieu / Matthew","Luc / Luke","Jean / John"],ans:1,ref:"Matthieu 5:3-12",verse:"Heureux les pauvres en esprit... — Matthieu 5:3"},
+{q:"Quel est le nom de la montagne où Moïse a reçu les Tables de la Loi ?",qe:"What is the name of the mountain where Moses received the Law?",opts:["Mont Carmel / Mount Carmel","Mont Sinaï / Mount Sinai","Mont Hermon / Mount Hermon","Mont Nebo / Mount Nebo"],ans:1,ref:"Exode 19:20",verse:"L'Éternel descendit sur la montagne de Sinaï... et il appela Moïse. — Exode 19:20"},
+{q:"Combien de lettres Jean a-t-il écrites dans le NT ?",qe:"How many letters did John write in the NT?",opts:["1","2","3","4"],ans:2,ref:"—",verse:"Jean a écrit 3 épîtres dans le Nouveau Testament : 1 Jean, 2 Jean et 3 Jean."},
+{q:"Qui était Priscille dans le NT ?",qe:"Who was Priscilla in the NT?",opts:["La femme de Pierre / Peter's wife","Une prophétesse / A prophetess","La femme d'Aquilas / Aquila's wife","Une diaconesse / A deaconess"],ans:2,ref:"Actes 18:2",verse:"Il trouva un Juif nommé Aquilas... avec sa femme Priscille. — Actes 18:2"},
+{q:"Quel prophète a été enlevé au ciel sur un char de feu ?",qe:"Which prophet was taken to heaven in a chariot of fire?",opts:["Moïse / Moses","Hénoc / Enoch","Ésaïe / Isaiah","Élie / Elijah"],ans:3,ref:"2 Rois 2:11",verse:"Un char de feu et des chevaux de feu les séparèrent... et Élie monta au ciel dans un tourbillon. — 2 Rois 2:11"},
+{q:"Combien de fois Jésus a-t-il nourri une grande foule avec du pain et du poisson ?",qe:"How many times did Jesus feed a large crowd with bread and fish?",opts:["1 fois / 1 time","2 fois / 2 times","3 fois / 3 times","4 fois / 4 times"],ans:1,ref:"Matthieu 14:21 et 15:38",verse:"Jésus a nourri miraculeusement la foule deux fois dans les Évangiles."},
+{q:"Quel est le nom de la vallée où David a tué Goliath ?",qe:"What is the name of the valley where David killed Goliath?",opts:["La vallée de Josaphat / Valley of Jehoshaphat","La vallée d'Élah / Valley of Elah","La vallée du Cédron / Kidron Valley","La vallée de Hinnom / Valley of Hinnom"],ans:1,ref:"1 Samuel 17:2",verse:"Les Philistins se rassemblèrent... et campèrent dans la vallée d'Élah. — 1 Samuel 17:2"},
+{q:"Qui a écrit le livre des Actes des Apôtres ?",qe:"Who wrote the book of Acts?",opts:["Pierre / Peter","Paul","Luc / Luke","Jean / John"],ans:2,ref:"Actes 1:1",verse:"J'ai parlé, dans mon premier livre, de tout ce que Jésus a fait et enseigné. — Actes 1:1"},
+{q:"Combien de versets contient Jean 3:16 ?",qe:"How many verses is John 3:16?",opts:["1","2","3","4"],ans:0,ref:"Jean 3:16",verse:"Jean 3:16 est un seul verset : 'Car Dieu a tant aimé le monde...'"},
+{q:"Quelle était la profession de Lydie dans Actes 16 ?",qe:"What was Lydia's profession in Acts 16?",opts:["Couturière / Seamstress","Marchande de pourpre / Seller of purple","Pêcheuse / Fisher","Tisserande / Weaver"],ans:1,ref:"Actes 16:14",verse:"Lydie, marchande de pourpre, de la ville de Thyatire. — Actes 16:14"},
+{q:"Quel est le premier commandement avec promesse selon Paul ?",qe:"What is the first commandment with a promise according to Paul?",opts:["Ne tue pas / Do not kill","Honore ton père et ta mère / Honor your father and mother","Tu n'auras pas d'autres dieux / No other gods","Aime ton prochain / Love your neighbor"],ans:1,ref:"Éphésiens 6:2",verse:"Honore ton père et ta mère... c'est le premier commandement avec une promesse. — Éphésiens 6:2"},
+{q:"Quelle est la signification du nom 'Béthel' ?",qe:"What does the name 'Bethel' mean?",opts:["Maison de Dieu / House of God","Lieu de prière / Place of prayer","Source de vie / Source of life","Colline sacrée / Sacred hill"],ans:0,ref:"Genèse 28:19",verse:"Il donna à ce lieu le nom de Béthel... maison de Dieu. — Genèse 28:19"},
+{q:"Combien de chapitres contient le livre de Jean ?",qe:"How many chapters does the book of John have?",opts:["16","19","21","24"],ans:2,ref:"—",verse:"L'Évangile de Jean contient 21 chapitres."},
+{q:"Qui était Gamaliel dans le NT ?",qe:"Who was Gamaliel in the NT?",opts:["Un grand prêtre / A high priest","Un docteur de la loi / A doctor of the law","Un centurion romain / A Roman centurion","Un disciple de Jean / A disciple of John"],ans:1,ref:"Actes 5:34",verse:"Un pharisien nommé Gamaliel, docteur de la loi. — Actes 5:34"},
+{q:"Quel roi a fait jeter Daniel dans la fosse aux lions ?",qe:"Which king threw Daniel into the lions' den?",opts:["Nabuchodonosor / Nebuchadnezzar","Belschatsar / Belshazzar","Cyrus","Darius"],ans:3,ref:"Daniel 6:16",verse:"Le roi donna l'ordre et l'on amena Daniel et on le jeta dans la fosse aux lions. — Daniel 6:16"},
+{q:"Combien de jours Dieu a-t-il mis pour créer le monde ?",qe:"How many days did God take to create the world?",opts:["5","6","7","8"],ans:1,ref:"Genèse 1:31",verse:"Il y eut un soir, et il y eut un matin : ce fut le sixième jour. — Genèse 1:31"},
+{q:"Qui a planté le premier jardin selon la Bible ?",qe:"Who planted the first garden according to the Bible?",opts:["Adam","Dieu / God","Noé / Noah","Caïn / Cain"],ans:1,ref:"Genèse 2:8",verse:"L'Éternel Dieu planta un jardin en Éden. — Genèse 2:8"},
+{q:"Quel psaume commence par 'L'Éternel est mon berger' ?",qe:"Which psalm begins 'The LORD is my shepherd'?",opts:["Psaume 1","Psaume 23","Psaume 100","Psaume 119"],ans:1,ref:"Psaume 23:1",verse:"L'Éternel est mon berger : je ne manquerai de rien. — Psaume 23:1"},
+{q:"Qui a construit l'arche de Noé ?",qe:"Who built Noah's ark?",opts:["Noé / Noah","Ses fils / His sons","Noé et ses fils / Noah and his sons","Des ouvriers / Workers"],ans:2,ref:"Genèse 6:22",verse:"Noé fit tout ce que Dieu lui avait ordonné. — Genèse 6:22"},
+{q:"Quelle était la longueur de l'arche de Noé en coudées ?",qe:"What was the length of Noah's ark in cubits?",opts:["200","300","400","500"],ans:1,ref:"Genèse 6:15",verse:"La longueur de l'arche sera de trois cents coudées. — Genèse 6:15"},
+{q:"Qui était Aquila dans le Nouveau Testament ?",qe:"Who was Aquila in the New Testament?",opts:["Un apôtre / An apostle","Le mari de Priscille / Priscilla's husband","Un disciple de Jean / A disciple of John","Un centurion / A centurion"],ans:1,ref:"Actes 18:2",verse:"Il trouva un Juif nommé Aquilas... avec sa femme Priscille. — Actes 18:2"},
+{q:"Quel est le deuxième livre de la Bible ?",qe:"What is the second book of the Bible?",opts:["Lévitique / Leviticus","Nombres / Numbers","Exode / Exodus","Deutéronome / Deuteronomy"],ans:2,ref:"—",verse:"Exode est le deuxième livre de la Bible."},
+{q:"Combien d'épîtres Pierre a-t-il écrites ?",qe:"How many epistles did Peter write?",opts:["1","2","3","4"],ans:1,ref:"—",verse:"Pierre a écrit deux épîtres : 1 Pierre et 2 Pierre."},
+{q:"Qui a élevé Samuel après sa naissance ?",qe:"Who raised Samuel after his birth?",opts:["Sa mère Anne / His mother Hannah","Le prêtre Éli / Priest Eli","Son père Elcana / His father Elkanah","Sa grand-mère / His grandmother"],ans:1,ref:"1 Samuel 1:28",verse:"Je le cède à l'Éternel... Et il se prosterna là devant l'Éternel. — 1 Samuel 1:28"},
+{q:"Quelle est la dernière plaie d'Égypte ?",qe:"What was the last plague of Egypt?",opts:["Les sauterelles / Locusts","Les ténèbres / Darkness","La mort des premiers-nés / Death of firstborn","Les grêlons / Hail"],ans:2,ref:"Exode 12:29",verse:"L'Éternel frappa tous les premiers-nés dans le pays d'Égypte. — Exode 12:29"},
+{q:"Qui a dit 'Je suis la vigne, vous êtes les sarments' ?",qe:"Who said 'I am the vine, you are the branches'?",opts:["Paul","Jésus / Jesus","Jean / John","Pierre / Peter"],ans:1,ref:"Jean 15:5",verse:"Je suis la vigne, vous êtes les sarments. — Jean 15:5"},
+{q:"Quelle femme a sauvé les espions israélites à Jéricho ?",qe:"Which woman saved the Israelite spies in Jericho?",opts:["Déborah / Deborah","Ruth","Rahab","Esther"],ans:2,ref:"Josué 2:1",verse:"Les messagers allèrent et entrèrent dans la maison d'une femme prostituée nommée Rahab. — Josué 2:1"},
+{q:"Combien de fils Jacob avait-il ?",qe:"How many sons did Jacob have?",opts:["10","11","12","13"],ans:2,ref:"Genèse 35:22",verse:"Jacob avait douze fils. — Genèse 35:22"},
+{q:"Quel animal représente Jésus dans l'Apocalypse ?",qe:"What animal represents Jesus in Revelation?",opts:["Un lion / A lion","Un agneau / A Lamb","Un aigle / An eagle","Un taureau / A bull"],ans:1,ref:"Apocalypse 5:6",verse:"Je vis au milieu du trône un agneau qui était comme immolé. — Apocalypse 5:6"},
+{q:"Qui a interprété les rêves de Pharaon ?",qe:"Who interpreted Pharaoh's dreams?",opts:["Moïse / Moses","Aaron","Joseph","Daniel"],ans:2,ref:"Genèse 41:15",verse:"J'ai entendu dire de toi que tu comprends un songe pour l'interpréter. — Genèse 41:15"},
+{q:"Où Jésus a-t-il prié dans le jardin avant son arrestation ?",qe:"Where did Jesus pray in the garden before his arrest?",opts:["Jardin d'Éden / Garden of Eden","Jardin de Gethsémané / Garden of Gethsemane","Mont des Oliviers / Mount of Olives","Jardin du tombeau / Garden Tomb"],ans:1,ref:"Matthieu 26:36",verse:"Jésus alla avec eux dans un lieu appelé Gethsémané. — Matthieu 26:36"},
+{q:"Quel est le premier commandement que Jésus cite comme le plus grand ?",qe:"What is the first commandment Jesus cites as the greatest?",opts:["Aime ton prochain / Love your neighbor","Ne tue pas / Do not kill","Aime Dieu de tout ton coeur / Love God with all your heart","Honore tes parents / Honor your parents"],ans:2,ref:"Matthieu 22:37",verse:"Tu aimeras le Seigneur, ton Dieu, de tout ton coeur. — Matthieu 22:37"},
+{q:"Qui était le premier martyr chrétien ?",qe:"Who was the first Christian martyr?",opts:["Pierre / Peter","Paul","Stéphane / Stephen","Jacques / James"],ans:2,ref:"Actes 7:59",verse:"Ils lapidèrent Étienne, qui priait et disait : Seigneur Jésus, reçois mon esprit ! — Actes 7:59"},
+{q:"Combien de chapitres contient le livre de Genèse ?",qe:"How many chapters does Genesis have?",opts:["40","50","60","70"],ans:1,ref:"—",verse:"Le livre de Genèse contient 50 chapitres."},
+{q:"Quel est le nom du jardin où Adam et Ève vivaient ?",qe:"What is the name of the garden where Adam and Eve lived?",opts:["Éden / Eden","Gethsémané / Gethsemane","Béthanie / Bethany","Siloé / Siloam"],ans:0,ref:"Genèse 2:8",verse:"L'Éternel Dieu planta un jardin en Éden. — Genèse 2:8"},
+{q:"Qui était Onésime dans les épîtres de Paul ?",qe:"Who was Onesimus in Paul's epistles?",opts:["Un évangéliste / An evangelist","Un esclave / A slave","Un centurion / A centurion","Un ancien / An elder"],ans:1,ref:"Philémon 1:10",verse:"Je t'adresse une prière pour mon enfant Onésime. — Philémon 1:10"},
+{q:"Quel est le nom du serviteur d'Abraham qui a cherché une femme pour Isaac ?",qe:"What is the name of Abraham's servant who found a wife for Isaac?",opts:["Éliézer / Eliezer","Ismaël / Ishmael","Hagar","Lot"],ans:0,ref:"Genèse 24:2",verse:"Abraham dit au plus ancien serviteur de sa maison, Éliézer. — Genèse 15:2"},
+{q:"Combien de livres contient le Nouveau Testament ?",qe:"How many books does the New Testament contain?",opts:["21","25","27","29"],ans:2,ref:"—",verse:"Le Nouveau Testament contient 27 livres."},
+{q:"Qui était l'auteur du livre des Proverbes principalement ?",qe:"Who was the main author of the book of Proverbs?",opts:["David","Moïse / Moses","Salomon / Solomon","Ézéchias / Hezekiah"],ans:2,ref:"Proverbes 1:1",verse:"Proverbes de Salomon, fils de David, roi d'Israël. — Proverbes 1:1"},
+{q:"Quel prophète a annoncé la naissance du Messie à Bethléem ?",qe:"Which prophet announced the birth of the Messiah in Bethlehem?",opts:["Ésaïe / Isaiah","Jérémie / Jeremiah","Michée / Micah","Zacharie / Zechariah"],ans:2,ref:"Michée 5:2",verse:"Et toi, Bethléhem Éphrata... c'est de toi que sortira pour moi celui qui dominera sur Israël. — Michée 5:2"},
+{q:"Que représentent les 7 chandeliers dans l'Apocalypse ?",qe:"What do the 7 lampstands represent in Revelation?",opts:["Les 7 anges / The 7 angels","Les 7 péchés / The 7 sins","Les 7 Églises / The 7 churches","Les 7 sceaux / The 7 seals"],ans:2,ref:"Apocalypse 1:20",verse:"Les sept chandeliers sont les sept Églises. — Apocalypse 1:20"}
 ]};
+
 </script>
 <script>
 // Dictionnaire de traduction pour les options communes
@@ -2985,7 +3123,9 @@ function getBibleKey(){return"cev_bible_"+(S.user?S.user.id:"anon");}
 function getBibleRead(){try{var r=localStorage.getItem(getBibleKey());return r?JSON.parse(r):{at:[],ps:[],nt:[]};}catch(e){return{at:[],ps:[],nt:[]};}}
 function saveBibleRead(r){try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}}
 
-function getBibleStartKey(){return"cev_bible_start_"+(S.user?S.user.id:"anon");}
+function getBiblePlanKey(){return"cev_bible_plan_"+(S.user?S.user.id:"anon");}
+function getBiblePlan(){try{return localStorage.getItem(getBiblePlanKey())||"365";}catch(e){return"365";}}
+function setBiblePlan(p){try{localStorage.setItem(getBiblePlanKey(),p);}catch(e){}}
 function getBibleStartDay(){try{var s=localStorage.getItem(getBibleStartKey());return s?parseInt(s):null;}catch(e){return null;}}
 function setBibleStartDay(d){try{localStorage.setItem(getBibleStartKey(),String(d));}catch(e){}}
 
@@ -3027,7 +3167,9 @@ function toggleBibleChap(section,chap){
   renderBible();
 }
 
-function startBible(){
+function startBible(days){
+  days=days||365;
+  setBiblePlan(String(days));
   setBibleStartDay(getDayOfYear());
   renderBible();
 }
@@ -3035,47 +3177,53 @@ function startBible(){
 function renderBible(){
   var c=document.getElementById("bible-cont");if(!c)return;
   var startDay=getBibleStartDay();
+  var plan=parseInt(getBiblePlan())||365;
+  var en=(S.lang==="en");
 
   if(startDay===null){
-    // Page d'accueil du plan
-    c.innerHTML=
-      '<div style="background:linear-gradient(135deg,#7C3AED,#2563EB);border-radius:16px;padding:20px;text-align:center;margin-bottom:13px;color:#fff">'
-      +'<div style="font-size:44px;margin-bottom:8px">📖</div>'
-      +'<h2 style="font-family:Playfair Display,serif;font-size:19px;margin-bottom:8px">Lire ma Bible en 1 an</h2>'
-      +'<p style="font-size:11px;color:rgba(255,255,255,.85);line-height:1.7">Chaque jour :\n📜 2 chapitres Ancien Testament\n📖 1 Psaume ou Proverbe\n✝️ 1 chapitre Nouveau Testament</p>'
-      +'<div style="margin-top:10px;background:rgba(255,255,255,.2);border-radius:10px;padding:6px 12px;font-size:10px;font-weight:700">~15 minutes de lecture par jour</div>'
-      +'</div>'
-      +'<button onclick="startBible()" style="width:100%;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:14px;padding:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 15px rgba(124,58,237,.3)">✝️ Commencer le plan aujourd\'hui !</button>';
+    var plans=[
+      {days:90,label:en?"3 months":"3 mois",sub:en?"~30 min/day":"~30 min/jour",color:"#DC2626",bg:"#FEF2F2",border:"#EF4444"},
+      {days:180,label:en?"6 months":"6 mois",sub:en?"~20 min/day":"~20 min/jour",color:"#D97706",bg:"#FFFBEB",border:"#F59E0B"},
+      {days:365,label:en?"1 year":"1 an",sub:en?"~15 min/day":"~15 min/jour",color:"#059669",bg:"#ECFDF5",border:"#059669"},
+      {days:730,label:en?"2 years":"2 ans",sub:en?"~8 min/day":"~8 min/jour",color:"#7C3AED",bg:"#EDE9FE",border:"#7C3AED"}
+    ];
+    var h='<div style="background:linear-gradient(135deg,#7C3AED,#2563EB);border-radius:16px;padding:18px;text-align:center;margin-bottom:13px;color:#fff">'
+      +'<div style="font-size:40px;margin-bottom:8px">&#x1F4DA;</div>'
+      +'<h2 style="font-family:Playfair Display,serif;font-size:18px;margin-bottom:8px">'+(en?"Read my Bible":"Lire ma Bible")+'</h2>'
+      +'<p style="font-size:11px;color:rgba(255,255,255,.85);line-height:1.7">'+(en?"Each day: 2 chap. OT + 1 Psalm/Proverb + 1 chap. NT":"Chaque jour : 2 chap. AT + 1 Psaume/Proverbe + 1 chap. NT")+'</p></div>'
+      +'<div style="margin-bottom:10px;font-weight:700;font-size:12px;color:#374151;text-align:center">'+(en?"Choose your plan:":"Choisis ton plan :")+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+    for(var i=0;i<plans.length;i++){
+      var p=plans[i];
+      h+='<button onclick="startBible('+p.days+')" style="background:'+p.bg+';border:2px solid '+p.border+';border-radius:14px;padding:14px 10px;font-family:Nunito,sans-serif;cursor:pointer;text-align:center">'
+        +'<div style="font-weight:800;font-size:13px;color:'+p.color+'">'+p.label+'</div>'
+        +'<div style="font-size:10px;color:#6B7280;margin-top:3px">'+p.sub+'</div></button>';
+    }
+    h+='</div>';
+    c.innerHTML=h;
     return;
   }
 
   var today=getDayOfYear();
   var read=getBibleRead();
-  var status=getBibleStatus(read,startDay,today);
+  var total=plan*4;
   var done=read.at.length+read.ps.length+read.nt.length;
-  var total=365*4;
   var pct=Math.min(100,Math.round((done/total)*100));
+  var status=getBibleStatus(read,startDay,today);
+  var planLabel=plan===90?(en?"3 months":"3 mois"):plan===180?(en?"6 months":"6 mois"):plan===365?(en?"1 year":"1 an"):(en?"2 years":"2 ans");
 
-  // En-tête statut
-  var h='<div style="background:'+status.bg+';border:2px solid '+status.border+';border-radius:14px;padding:12px 14px;margin-bottom:10px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
-    +'<span style="font-weight:800;font-size:12px;color:'+status.color+'">'+status.label+'</span>'
-    +'<span style="font-size:10px;font-weight:700;color:'+status.color+'">'+pct+'%</span>'
-    +'</div>'
-    +'<div style="height:7px;background:rgba(0,0,0,.1);border-radius:4px;overflow:hidden">'
-    +'<div style="height:100%;width:'+pct+'%;background:'+status.color+';border-radius:4px;transition:width .6s"></div>'
-    +'</div>'
-    +'<div style="font-size:9px;color:'+status.color+';margin-top:3px">'+done+' chapitres lus sur '+total+'</div>'
-    +'</div>';
+  var h='<div style="background:'+status.bg+';border:2px solid '+status.border+';border-radius:13px;padding:10px 13px;margin-bottom:9px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
+    +'<span style="font-weight:800;font-size:11px;color:'+status.color+'">'+status.label+'</span>'
+    +'<span style="font-size:9px;color:'+status.color+'">'+pct+'% - '+planLabel+'</span></div>'
+    +'<div style="height:6px;background:rgba(0,0,0,.1);border-radius:4px;overflow:hidden">'
+    +'<div style="height:100%;width:'+pct+'%;background:'+status.color+';border-radius:4px;transition:width .6s"></div></div>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:4px">'
+    +'<span style="font-size:9px;color:'+status.color+'">'+done+'/'+total+' '+(en?"chapters":"chapitres")+'</span>'
+    +'<button onclick="localStorage.removeItem(getBibleStartKey());localStorage.removeItem(getBiblePlanKey());renderBible();" style="background:none;border:none;font-size:9px;color:#9CA3AF;cursor:pointer;font-family:Nunito">'+(en?"Change plan":"Changer plan")+'</button>'
+    +'</div></div>';
 
-  // Trouver les prochains chapitres à lire pour chaque section
-  function nextChap(allChaps, readArr){
-    for(var i=0;i<allChaps.length;i++){
-      if(readArr.indexOf(allChaps[i])===-1)return{chap:allChaps[i],idx:i};
-    }
-    return null;
-  }
-
+  function nextChap(all,r){for(var i=0;i<all.length;i++){if(r.indexOf(all[i])===-1)return all[i];}return null;}
   var allAt=[],allPs=[],allNt=[];
   for(var i=0;i<BIBLE_PLAN.length;i++){
     if(BIBLE_PLAN[i].at1)allAt.push(BIBLE_PLAN[i].at1);
@@ -3084,160 +3232,24 @@ function renderBible(){
     if(BIBLE_PLAN[i].nt)allNt.push(BIBLE_PLAN[i].nt);
   }
 
-  function chapCard(section,label,emoji,color,allChaps,readArr){
-    var next=nextChap(allChaps,readArr);
-    if(!next)return'<div style="background:#F0FDF4;border-radius:14px;padding:12px;margin-bottom:8px;text-align:center;border:2px solid #059669"><div style="font-size:20px">🎉</div><div style="font-weight:800;font-size:11px;color:#059669">'+label+' terminé !</div></div>';
-
-    var chap=next.chap;
-    var isRead=(readArr.indexOf(chap)>-1);
-    var done2=readArr.length;
-    var pct2=Math.min(100,Math.round((done2/allChaps.length)*100));
-
-    return'<div style="background:#fff;border-radius:14px;padding:12px 13px;margin-bottom:8px;box-shadow:var(--sh);border-left:4px solid '+color+'">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">'
-      +'<div style="font-size:9px;font-weight:800;color:'+color+';text-transform:uppercase;letter-spacing:.4px">'+emoji+' '+label+'</div>'
-      +'<div style="font-size:9px;color:#6B7280">'+done2+'/'+allChaps.length+'</div>'
-      +'</div>'
-      +'<div style="height:4px;background:#E5E7EB;border-radius:4px;margin-bottom:8px;overflow:hidden"><div style="height:100%;width:'+pct2+'%;background:'+color+';border-radius:4px"></div></div>'
+  function chapCard(sec,label,emoji,color,all,r){
+    var chap=nextChap(all,r);
+    if(!chap)return'<div style="background:#F0FDF4;border-radius:13px;padding:10px;margin-bottom:8px;text-align:center;border:2px solid #059669"><strong style="color:#059669">&#x1F389; '+label+' '+(en?"done!":"termine !")+'</strong></div>';
+    var isRead=(r.indexOf(chap)>-1);
+    var pct2=Math.min(100,Math.round((r.length/all.length)*100));
+    return'<div style="background:#fff;border-radius:13px;padding:11px 12px;margin-bottom:8px;box-shadow:var(--sh);border-left:4px solid '+color+'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
+      +'<span style="font-size:9px;font-weight:800;color:'+color+';text-transform:uppercase">'+emoji+' '+label+'</span>'
+      +'<span style="font-size:9px;color:#6B7280">'+r.length+'/'+all.length+'</span></div>'
+      +'<div style="height:3px;background:#E5E7EB;border-radius:4px;margin-bottom:8px"><div style="height:100%;width:'+pct2+'%;background:'+color+';border-radius:4px"></div></div>'
       +'<div style="display:flex;align-items:center;justify-content:space-between">'
       +'<div style="font-weight:700;font-size:14px;color:#1F2937">'+chap+'</div>'
-      +'<button onclick="toggleBibleChap(\''+section+'\',\''+chap.replace(/'/g,"\\'")+'\')" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+color+","+color+"CC")+';color:#fff;border:none;border-radius:10px;padding:7px 14px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer">'
-      +(isRead?"✅ Lu":"Marquer lu")+'</button>'
-      +'</div>'
-      +'</div>';
+      +'<button onclick="toggleBibleChap(''+sec+'',''+chap.replace(/'/g,"\'")+'''+')" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+color+","+color+"CC)")+';color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer">'+(isRead?(en?"&#x2705; Read":"&#x2705; Lu"):(en?"Mark read":"Marquer lu"))+'</button>'
+      +'</div></div>';
   }
 
-  h+=chapCard("at","Ancien Testament","📜","#7C3AED",allAt,read.at);
-  h+=chapCard("ps","Psaume / Proverbe","📖","#D97706",allPs,read.ps);
-  h+=chapCard("nt","Nouveau Testament","✝️","#2563EB",allNt,read.nt);
-
-  // Historique récent
-  if(read.at.length+read.ps.length+read.nt.length>0){
-    var recent=read.at.slice(-3).concat(read.ps.slice(-2)).concat(read.nt.slice(-2));
-    h+='<div style="background:#F9FAFB;border-radius:12px;padding:10px 12px;margin-top:4px">'
-      +'<div style="font-size:9px;font-weight:800;color:#6B7280;text-transform:uppercase;margin-bottom:6px">📚 Récemment lu</div>';
-    for(var i=recent.length-1;i>=0;i--){
-      h+='<div style="font-size:11px;color:#374151;padding:3px 0;border-bottom:1px solid #E5E7EB">✓ '+recent[i]+'</div>';
-    }
-    h+='</div>';
-  }
-
+  h+=chapCard("at",en?"Old Testament":"Ancien Testament","&#x1F4DC;","#7C3AED",allAt,read.at);
+  h+=chapCard("ps",en?"Psalm / Proverb":"Psaume / Proverbe","&#x1F4D6;","#D97706",allPs,read.ps);
+  h+=chapCard("nt",en?"New Testament":"Nouveau Testament","&#x271D;&#xFE0F;","#2563EB",allNt,read.nt);
   c.innerHTML=h;
 }
-
-var OB_KEY="cev_onboarding_v2"; // v2 force réaffichage
-function obHasSeen(){try{return localStorage.getItem(OB_KEY)==="1";}catch(e){return false;}}
-function obMarkSeen(){try{localStorage.setItem(OB_KEY,"1");}catch(e){}}
-
-function showOnboarding(onDone){
-  var fr=(S.lang!=="en");
-  var slides=[
-    {bg:"linear-gradient(135deg,#7C3AED,#2563EB)",logo:true,
-     title:fr?"Bienvenue sur Quiz Biblique C.E.V !":"Welcome to Bible Quiz C.E.V!",
-     text:fr?"Apprends la Parole de Dieu en t'amusant !\nChrist Est Vivant · La Foi · L'Espérance · L'Amour":"Learn God's Word while having fun!\nChrist Is Alive · Faith · Hope · Love",
-     badge:fr?"100% Gratuit · Zéro Pub 🎉":"100% Free · Zero Ads 🎉"},
-    {bg:"linear-gradient(135deg,#059669,#2563EB)",icon:"📖",
-     title:fr?"Quiz Biblique":"Bible Quiz",
-     text:fr?"200+ questions par niveau\n🌱 Facile · 🔥 Moyen · ⚡ Difficile\nGagne des points et monte en niveau !\nDe Apprenti jusqu'à Héros Biblique 👑":"200+ questions per level\n🌱 Easy · 🔥 Medium · ⚡ Hard\nEarn points and level up!\nFrom Apprentice to Bible Hero 👑",
-     badge:fr?"20 questions / jour":"20 questions / day"},
-    {bg:"linear-gradient(135deg,#D97706,#F59E0B)",icon:"⚔️",
-     title:fr?"Mode Challenge":"Challenge Mode",
-     text:fr?"Défie tes amis en temps réel !\n2 à 12 joueurs simultanément\nTimer 15 secondes par question\nLe premier à 20 points gagne !":"Challenge friends in real time!\n2 to 12 players simultaneously\n15-second timer per question\nFirst to 20 points wins!",
-     badge:fr?"Multijoueur temps réel 🔥":"Real-time multiplayer 🔥"},
-    {bg:"linear-gradient(135deg,#7C3AED,#EC4899)",icon:"🏆",
-     title:fr?"Classement & Progression":"Leaderboard & Progress",
-     text:fr?"📊 Classement Jour · Semaine · Mois\n⭐ Système de niveaux avec XP\n🌟 10 niveaux à débloquer\n📅 Verset du jour chaque matin":"📊 Daily · Weekly · Monthly leaderboard\n⭐ Level system with XP\n🌟 10 levels to unlock\n📅 Verse of the day each morning",
-     badge:fr?"Progression sauvegardée 💾":"Progress saved 💾"},
-    {bg:"linear-gradient(135deg,#059669,#7C3AED)",icon:"📱",
-     title:fr?"Comment s'inscrire":"How to register",
-     text:fr?"C'est simple et rapide !\n\n🔐 Compte permanent :\nPrénom + Pseudo + Email/Tél + Mot de passe\n\n⚡ Connexion rapide :\nJuste Prénom + Ville · C'est tout ! 🙏":"Simple and fast!\n\n🔐 Permanent account:\nName + Pseudo + Email/Phone + Password\n\n⚡ Quick login:\nJust Name + City · That's it! 🙏",
-     badge:fr?"Inscription en 10 secondes ⚡":"Sign up in 10 seconds ⚡"},
-    {bg:"linear-gradient(135deg,#1F2937,#374151)",icon:"😇",
-     title:fr?"Une dernière chose...":"One last thing...",
-     text:fr?"Ce quiz est basé sur la Bible Louis Segond 1910.\n\nLes réponses sont dans la Parole de Dieu...\npas sur Google ! 😅\n\nAlors promis... on ne triche pas hein ! 🫵😂\n\nQue le meilleur connaisseur de la Bible gagne ! 🏆":"This quiz is based on the Louis Segond 1910 Bible.\n\nThe answers are in God's Word...\nnot on Google! 😅\n\nSo promise... no cheating! 🫵😂\n\nMay the best Bible scholar win! 🏆",
-     badge:fr?"Que Dieu soit avec toi ! 🙏":"May God be with you! 🙏"}
-  ];
-
-  var cur=0;
-
-  function renderOb(){
-    var s=slides[cur];
-    var card=document.getElementById("ob-card");
-    var ob=document.getElementById("onboarding");
-    if(ob){ob.style.display="flex";ob.style.opacity="1";}
-    if(!card)return;
-    var dots=slides.map(function(_,i){
-      return '<div style="width:'+(i===cur?'20':'7')+'px;height:7px;border-radius:4px;background:'+(i===cur?'#fff':'rgba(255,255,255,.35)')+';transition:all .3s"></div>';
-    }).join('');
-    var iconH=s.logo
-      ?'<img src="/icons/icon-192x192.png" onerror="this.style.display=\'none\'" style="width:80px;height:80px;border-radius:50%;margin-bottom:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)">'
-      :'<div style="font-size:54px;margin-bottom:8px">'+s.icon+'</div>';
-    var isLast=(cur===slides.length-1);
-    var backBtn=cur>0?'<button onclick="obPrev()" style="background:#F3F4F6;color:#6B7280;border:none;border-radius:12px;padding:10px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer">← '+(fr?"Retour":"Back")+'</button>':'<div></div>';
-    var nextBtn=isLast
-      ?'<button onclick="obFinish()" style="flex:1;background:linear-gradient(135deg,#059669,#7C3AED);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer">'+(fr?"Je m\'inscris ! ✝️":"Sign me up! ✝️")+'</button>'
-      :'<button onclick="obNext()" style="flex:1;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(124,58,237,.3)">'+(fr?"Suivant →":"Next →")+'</button>';
-    card.innerHTML=
-      '<div style="background:'+s.bg+';padding:22px 20px 16px;text-align:center">'+iconH
-      +'<div style="display:flex;justify-content:center;gap:5px;margin-top:6px">'+dots+'</div></div>'
-      +'<div style="padding:16px 20px 6px">'
-      +'<h2 style="font-family:Playfair Display,serif;font-size:17px;font-weight:900;color:#1F2937;margin-bottom:8px;text-align:center">'+s.title+'</h2>'
-      +'<p style="font-size:12px;color:#6B7280;line-height:1.7;white-space:pre-line;text-align:center">'+s.text+'</p>'
-      +(s.badge?'<div style="margin-top:10px;text-align:center"><span style="background:linear-gradient(135deg,#EDE9FE,#DBEAFE);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:800;color:#7C3AED">'+s.badge+'</span></div>':'')
-      +'</div>'
-      +'<div style="display:flex;gap:8px;padding:10px 20px 14px;align-items:center">'+backBtn+nextBtn+'</div>'
-      +(!isLast?'<div style="text-align:center;padding-bottom:12px"><button onclick="obFinish()" style="background:none;border:none;color:#9CA3AF;font-family:Nunito,sans-serif;font-size:11px;cursor:pointer;text-decoration:underline">'+(fr?"Passer l\'intro":"Skip intro")+'</button></div>':'');
-  }
-
-  window.obNext=function(){if(cur<slides.length-1){cur++;renderOb();}};
-  window.obPrev=function(){if(cur>0){cur--;renderOb();}};
-  window.obFinish=function(){
-    obMarkSeen();
-    var ob=document.getElementById("onboarding");
-    if(ob){ob.style.opacity="0";setTimeout(function(){ob.style.display="none";if(typeof onDone==="function")onDone();},400);}
-    else{if(typeof onDone==="function")onDone();}
-  };
-
-  renderOb();
-}
-
-window.onload=function(){
-  // Écouter les messages du Service Worker
-  if(navigator.serviceWorker){
-    navigator.serviceWorker.addEventListener("message",function(e){
-      if(e.data&&e.data.type==="join_challenge"&&e.data.code){
-        setTimeout(function(){
-          goTo("defi");
-          setTimeout(function(){
-            var inp=document.getElementById("room-code-inp");
-            if(inp){inp.value=e.data.code;joinRoom();}
-          },500);
-        },1000);
-      }
-    });
-  }
-  try{
-    var sess=localStorage.getItem("cev_session");
-    if(sess){
-      var d=JSON.parse(sess);
-      var today=todayStr();
-      if(d.uid&&d.token){
-        // Utilisateur déjà connecté — masquer l'auth et aller dans l'app
-        S.user={id:d.uid,prenom:d.prenom,pseudo:d.pseudo||d.prenom,ville:d.ville};
-        S.token=d.token;
-        S.score=d.day===today?(d.score||0):0;
-        if(d.lang)S.lang=d.lang;
-        document.getElementById("ao").classList.add("h");
-        var ob=document.getElementById("onboarding");
-        if(ob)ob.style.display="none";
-        initApp();
-        return;
-      }
-    }
-  }catch(e){console.log("session err",e);}
-  // Nouvel utilisateur — afficher l'étape choix de langue
-  goStep("step-lang");
-};
-</script>
-</body>
-</html>
