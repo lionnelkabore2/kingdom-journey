@@ -527,24 +527,110 @@ function goStep(stepId){
   if(target)target.style.display="block";
 }
 
+// ── ONBOARDING ─────────────────────────────────────────────
+var OB_KEY="cev_onboarding_v2";
+function obHasSeen(){try{return localStorage.getItem(OB_KEY)==="1";}catch(e){return false;}}
+function obMarkSeen(){try{localStorage.setItem(OB_KEY,"1");}catch(e){}}
+
+function showOnboarding(onDone){
+  var fr=(S.lang!=="en");
+  var slides=[
+    {bg:"linear-gradient(135deg,#7C3AED,#2563EB)",logo:true,
+     title:fr?"Bienvenue sur Quiz Biblique C.E.V !":"Welcome to Bible Quiz C.E.V!",
+     text:fr?"Apprends la Parole de Dieu en t'amusant !\nChrist Est Vivant · La Foi · L'Espérance · L'Amour":"Learn God's Word while having fun!\nChrist Is Alive · Faith · Hope · Love",
+     badge:fr?"100% Gratuit · Zéro Pub 🎉":"100% Free · Zero Ads 🎉"},
+    {bg:"linear-gradient(135deg,#059669,#2563EB)",icon:"📖",
+     title:fr?"Quiz Biblique":"Bible Quiz",
+     text:fr?"500 questions · 3 niveaux\n🌱 Facile · 🔥 Moyen · ⚡ Difficile\nGagne des XP et monte en niveau !\nDe Apprenti jusqu'à Héros Biblique 👑":"500 questions · 3 levels\n🌱 Easy · 🔥 Medium · ⚡ Hard\nEarn XP and level up!\nFrom Apprentice to Bible Hero 👑",
+     badge:fr?"20 questions / jour":"20 questions / day"},
+    {bg:"linear-gradient(135deg,#D97706,#F59E0B)",icon:"⚔️",
+     title:fr?"Mode Challenge":"Challenge Mode",
+     text:fr?"Défie tes amis en temps réel !\n2 à 12 joueurs simultanément\nTimer 15 secondes par question\nLe premier à 20 points gagne !":"Challenge friends in real time!\n2 to 12 players simultaneously\n15-second timer per question\nFirst to 20 points wins!",
+     badge:fr?"Multijoueur temps réel 🔥":"Real-time multiplayer 🔥"},
+    {bg:"linear-gradient(135deg,#7C3AED,#EC4899)",icon:"🏆",
+     title:fr?"Classement & Progression":"Leaderboard & Progress",
+     text:fr?"📊 Classement Jour · Semaine · Mois\n⭐ Système de niveaux avec XP\n🌟 10 niveaux à débloquer\n📅 Verset du jour chaque matin":"📊 Daily · Weekly · Monthly leaderboard\n⭐ Level system with XP\n🌟 10 levels to unlock\n📅 Verse of the day each morning",
+     badge:fr?"Progression sauvegardée 💾":"Progress saved 💾"},
+    {bg:"linear-gradient(135deg,#059669,#7C3AED)",icon:"📱",
+     title:fr?"Comment s'inscrire":"How to register",
+     text:fr?"C'est simple et rapide !\n\n🔐 Compte permanent :\nPrénom + Pseudo + Email + Mot de passe\n\n⚡ Connexion rapide :\nJuste Prénom + Ville · C'est tout ! 🙏":"Simple and fast!\n\n🔐 Permanent account:\nName + Pseudo + Email + Password\n\n⚡ Quick login:\nJust Name + City · That's it! 🙏",
+     badge:fr?"Inscription en 10 secondes ⚡":"Sign up in 10 seconds ⚡"},
+    {bg:"linear-gradient(135deg,#1F2937,#374151)",icon:"😇",
+     title:fr?"Une dernière chose...":"One last thing...",
+     text:fr?"Ce quiz est basé sur la Bible Louis Segond 1910.\n\nLes réponses sont dans la Parole de Dieu...\npas sur Google ! 😅\n\nAlors promis... on ne triche pas hein ! 🫵😂\n\nQue le meilleur connaisseur de la Bible gagne ! 🏆":"This quiz is based on the Louis Segond 1910 Bible.\n\nThe answers are in God's Word...\nnot on Google! 😅\n\nSo promise... no cheating! 🫵😂\n\nMay the best Bible scholar win! 🏆",
+     badge:fr?"Que Dieu soit avec toi ! 🙏":"May God be with you! 🙏"}
+  ];
+  var cur=0;
+
+  function renderOb(){
+    var ob=document.getElementById("onboarding");
+    var card=document.getElementById("ob-card");
+    if(ob){ob.style.display="flex";ob.style.opacity="1";}
+    if(!card)return;
+    var s=slides[cur];
+    var isLast=(cur===slides.length-1);
+    var dots=slides.map(function(_,i){
+      return'<div style="width:'+(i===cur?'20':'7')+'px;height:7px;border-radius:4px;background:'+(i===cur?'#fff':'rgba(255,255,255,.35)')+';transition:all .3s"></div>';
+    }).join('');
+    var iconH=s.logo
+      ?'<img src="/icons/icon-192x192.png" onerror="this.style.display=\'none\'" style="width:80px;height:80px;border-radius:50%;margin-bottom:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)">'
+      :'<div style="font-size:52px;margin-bottom:8px">'+s.icon+'</div>';
+    var backBtn=cur>0?'<button onclick="obPrev()" style="background:#F3F4F6;color:#6B7280;border:none;border-radius:12px;padding:10px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer">← '+(fr?"Retour":"Back")+'</button>':'<div></div>';
+    var nextBtn=isLast
+      ?'<button onclick="obFinish()" style="flex:1;background:linear-gradient(135deg,#059669,#7C3AED);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer">'+(fr?"Je m\'inscris ! ✝️":"Sign me up! ✝️")+'</button>'
+      :'<button onclick="obNext()" style="flex:1;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:12px;padding:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer">'+(fr?"Suivant →":"Next →")+'</button>';
+    card.innerHTML=
+      '<div style="background:'+s.bg+';padding:22px 20px 16px;text-align:center">'+iconH
+      +'<div style="display:flex;justify-content:center;gap:5px;margin-top:6px">'+dots+'</div></div>'
+      +'<div style="padding:16px 20px 6px">'
+      +'<h2 style="font-family:Playfair Display,serif;font-size:17px;font-weight:900;color:#1F2937;margin-bottom:8px;text-align:center">'+s.title+'</h2>'
+      +'<p style="font-size:12px;color:#6B7280;line-height:1.7;white-space:pre-line;text-align:center">'+s.text+'</p>'
+      +(s.badge?'<div style="margin-top:10px;text-align:center"><span style="background:linear-gradient(135deg,#EDE9FE,#DBEAFE);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:800;color:#7C3AED">'+s.badge+'</span></div>':'')
+      +'</div>'
+      +'<div style="display:flex;gap:8px;padding:10px 20px 14px;align-items:center">'+backBtn+nextBtn+'</div>'
+      +(!isLast?'<div style="text-align:center;padding-bottom:12px"><button onclick="obFinish()" style="background:none;border:none;color:#9CA3AF;font-family:Nunito,sans-serif;font-size:11px;cursor:pointer;text-decoration:underline">'+(fr?"Passer l\'intro":"Skip intro")+'</button></div>':'');
+  }
+
+  window.obNext=function(){if(cur<slides.length-1){cur++;renderOb();}};
+  window.obPrev=function(){if(cur>0){cur--;renderOb();}};
+  window.obFinish=function(){
+    obMarkSeen();
+    var ob=document.getElementById("onboarding");
+    if(ob){ob.style.opacity="0";setTimeout(function(){ob.style.display="none";if(typeof onDone==="function")onDone();},400);}
+    else{if(typeof onDone==="function")onDone();}
+  };
+  renderOb();
+}
+
 function chooseLang(lang){
   setLang(lang,null);
   // Highlight le bouton sélectionné
-  var fr=(lang==="fr");
+  var isFr=(lang==="fr");
   var btnFr=document.getElementById("lang-btn-fr");
   var btnEn=document.getElementById("lang-btn-en");
-  if(btnFr){btnFr.style.borderColor=fr?"#7C3AED":"#E5E7EB";btnFr.style.background=fr?"linear-gradient(135deg,#EDE9FE,#DDD6FE)":"#F9FAFB";}
-  if(btnEn){btnEn.style.borderColor=fr?"#E5E7EB":"#7C3AED";btnEn.style.background=fr?"#F9FAFB":"linear-gradient(135deg,#EDE9FE,#DDD6FE)";}
-  // Petite pause pour que l'utilisateur voit la sélection, puis continuer
+  if(btnFr){btnFr.style.borderColor=isFr?"#7C3AED":"#E5E7EB";btnFr.style.background=isFr?"linear-gradient(135deg,#EDE9FE,#DDD6FE)":"#F9FAFB";}
+  if(btnEn){btnEn.style.borderColor=isFr?"#E5E7EB":"#7C3AED";btnEn.style.background=isFr?"#F9FAFB":"linear-gradient(135deg,#EDE9FE,#DDD6FE)";}
+
   setTimeout(function(){
-    if(!obHasSeen()){
-      document.getElementById("ao").style.display="none";
-      showOnboarding(function(){
-        document.getElementById("ao").style.display="flex";
+    try{
+      if(!obHasSeen()){
+        // Masquer #ao, afficher l'onboarding par-dessus
+        var ao=document.getElementById("ao");
+        if(ao)ao.style.display="none";
+        showOnboarding(function(){
+          // Onboarding terminé → réafficher #ao sur l'étape choix
+          var ao2=document.getElementById("ao");
+          if(ao2)ao2.style.display="flex";
+          goStep("step-auth-choice");
+          updateAuthChoiceLabels();
+        });
+      } else {
         goStep("step-auth-choice");
         updateAuthChoiceLabels();
-      });
-    } else {
+      }
+    }catch(e){
+      // En cas d'erreur, aller directement au choix
+      console.log("chooseLang err:",e);
       goStep("step-auth-choice");
       updateAuthChoiceLabels();
     }
