@@ -1544,16 +1544,26 @@ function getDV(){
 
 // ── NIVEAU RPG ─────────────────────────────────────────────
 var LEVELS=[
-  {lvl:1,name:"Apprenti",namee:"Apprentice",emoji:"🌱",xp:0,next:10,bonus:0},
-  {lvl:2,name:"Disciple",namee:"Disciple",emoji:"📖",xp:10,next:25,bonus:5},
-  {lvl:3,name:"Fidèle",namee:"Faithful",emoji:"✝️",xp:25,next:50,bonus:10},
-  {lvl:4,name:"Sage",namee:"Wise",emoji:"⭐",xp:50,next:90,bonus:15},
-  {lvl:5,name:"Prophète",namee:"Prophet",emoji:"🔥",xp:90,next:140,bonus:20},
-  {lvl:6,name:"Apôtre",namee:"Apostle",emoji:"🌟",xp:140,next:200,bonus:25},
-  {lvl:7,name:"Gardien de la Parole",namee:"Word Guardian",emoji:"🛡️",xp:200,next:280,bonus:35},
-  {lvl:8,name:"Champion de la Foi",namee:"Faith Champion",emoji:"⚔️",xp:280,next:380,bonus:45},
-  {lvl:9,name:"Guerrier de Lumière",namee:"Light Warrior",emoji:"💫",xp:380,next:500,bonus:60},
-  {lvl:10,name:"Héros Biblique",namee:"Bible Hero",emoji:"👑",xp:500,next:999,bonus:80}
+  {lvl:1,name:"Apprenti",namee:"Apprentice",emoji:"🌱",xp:0,next:50,bonus:0},
+  {lvl:2,name:"Disciple",namee:"Disciple",emoji:"📖",xp:50,next:120,bonus:5},
+  {lvl:3,name:"Fidèle",namee:"Faithful",emoji:"✝️",xp:120,next:220,bonus:8},
+  {lvl:4,name:"Sage",namee:"Wise",emoji:"⭐",xp:220,next:350,bonus:10},
+  {lvl:5,name:"Prophète",namee:"Prophet",emoji:"🔥",xp:350,next:500,bonus:12},
+  {lvl:6,name:"Apôtre",namee:"Apostle",emoji:"🌟",xp:500,next:700,bonus:15},
+  {lvl:7,name:"Gardien de la Parole",namee:"Word Guardian",emoji:"🛡️",xp:700,next:950,bonus:18},
+  {lvl:8,name:"Champion de la Foi",namee:"Faith Champion",emoji:"⚔️",xp:950,next:1250,bonus:22},
+  {lvl:9,name:"Guerrier de Lumière",namee:"Light Warrior",emoji:"💫",xp:1250,next:1600,bonus:26},
+  {lvl:10,name:"Héros Biblique",namee:"Bible Hero",emoji:"👑",xp:1600,next:2000,bonus:30},
+  {lvl:11,name:"Serviteur de Dieu",namee:"Servant of God",emoji:"🙏",xp:2000,next:2450,bonus:35},
+  {lvl:12,name:"Berger Fidèle",namee:"Faithful Shepherd",emoji:"🐑",xp:2450,next:2950,bonus:40},
+  {lvl:13,name:"Porteur de Lumière",namee:"Light Bearer",emoji:"🕯️",xp:2950,next:3500,bonus:45},
+  {lvl:14,name:"Évangéliste",namee:"Evangelist",emoji:"📢",xp:3500,next:3950,bonus:50},
+  {lvl:15,name:"Témoin Fidèle",namee:"Faithful Witness",emoji:"🌿",xp:3950,next:4200,bonus:55},
+  {lvl:16,name:"Pilier de l'Église",namee:"Church Pillar",emoji:"🏛️",xp:4200,next:4450,bonus:60},
+  {lvl:17,name:"Ambassadeur du Christ",namee:"Ambassador of Christ",emoji:"✉️",xp:4450,next:4650,bonus:65},
+  {lvl:18,name:"Soldat de la Foi",namee:"Soldier of Faith",emoji:"🗡️",xp:4650,next:4800,bonus:70},
+  {lvl:19,name:"Sage Ancien",namee:"Elder of Wisdom",emoji:"📜",xp:4800,next:5000,bonus:75},
+  {lvl:20,name:"Lumière du Monde",namee:"Light of the World",emoji:"🌍",xp:5000,next:99999,bonus:100}
 ];
 
 function getXPKey(){return"cev_xp_"+(S.user?S.user.id:"");}
