@@ -3334,7 +3334,7 @@ function renderBible(){
       +'<div style="height:3px;background:#E5E7EB;border-radius:4px;margin-bottom:8px"><div style="height:100%;width:'+pct2+'%;background:'+color+';border-radius:4px"></div></div>'
       +'<div style="display:flex;align-items:center;justify-content:space-between">'
       +'<div style="font-weight:700;font-size:14px;color:#1F2937">'+chap+'</div>'
-      +'<button onclick="toggleBibleChap(''+sec+'',''+chap.replace(/'/g,"\'")+'''+')" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+color+","+color+"CC)")+';color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer">'+(isRead?(en?"&#x2705; Read":"&#x2705; Lu"):(en?"Mark read":"Marquer lu"))+'</button>'
+      +'<button onclick="toggleBibleChap(&apos;'+sec+'&apos;,&apos;'+chap+'&apos;)" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+color+","+color+"CC)")+';color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer">'+(isRead?(en?"&#x2705; Read":"&#x2705; Lu"):(en?"Mark read":"Marquer lu"))+'</button>'
       +'</div></div>';
   }
 
@@ -3343,6 +3343,8 @@ function renderBible(){
   h+=chapCard("nt",en?"New Testament":"Nouveau Testament","&#x271D;&#xFE0F;","#2563EB",allNt,read.nt);
   c.innerHTML=h;
 }
+
+</script>
 <script>
 window.onload=function(){
   // Écouter les messages du Service Worker
