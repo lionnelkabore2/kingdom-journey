@@ -3213,11 +3213,26 @@ function getBibleKey(){return"cev_bible_"+(S.user?S.user.id:"anon");}
 function getBibleRead(){try{var r=localStorage.getItem(getBibleKey());return r?JSON.parse(r):{at:[],ps:[],nt:[]};}catch(e){return{at:[],ps:[],nt:[]};}}
 function saveBibleRead(r){try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}}
 
+function getBibleKey(){return"cev_bible_"+(S.user?S.user.id:"anon");}
+function getBibleRead(){try{var r=localStorage.getItem(getBibleKey());return r?JSON.parse(r):{at:[],ps:[],nt:[]};}catch(e){return{at:[],ps:[],nt:[]};}}
+function saveBibleRead(r){try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}}
+function getBibleStartKey(){return"cev_bible_start_"+(S.user?S.user.id:"anon");}
 function getBiblePlanKey(){return"cev_bible_plan_"+(S.user?S.user.id:"anon");}
 function getBiblePlan(){try{return localStorage.getItem(getBiblePlanKey())||"365";}catch(e){return"365";}}
 function setBiblePlan(p){try{localStorage.setItem(getBiblePlanKey(),p);}catch(e){}}
 function getBibleStartDay(){try{var s=localStorage.getItem(getBibleStartKey());return s?parseInt(s):null;}catch(e){return null;}}
 function setBibleStartDay(d){try{localStorage.setItem(getBibleStartKey(),String(d));}catch(e){}}
+function getDayOfYear(){var now=new Date();var start=new Date(now.getFullYear(),0,1);return Math.floor((now-start)/86400000);}
+function getBibleStatus(read,startDay,today){
+  var daysSince=today-startDay;if(daysSince<0)daysSince=0;
+  var expected=(daysSince+1)*4;
+  var done=read.at.length+read.ps.length+read.nt.length;
+  var diff=done-expected;
+  var en=(S.lang==="en");
+  if(diff>=0)return{color:"#059669",bg:"#ECFDF5",border:"#059669",label:en?"✅ On track or ahead":"✅ En avance ou à jour",emoji:"🟢"};
+  if(diff>=-8)return{color:"#D97706",bg:"#FFFBEB",border:"#F59E0B",label:en?"⚠️ Slightly behind":"⚠️ Légèrement en retard",emoji:"🟡"};
+  return{color:"#DC2626",bg:"#FEF2F2",border:"#EF4444",label:en?"🔴 Behind — Keep going!":"🔴 En retard — Courage !",emoji:"🔴"};
+}
 
 function getDayOfYear(){
   var now=new Date();
