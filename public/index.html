@@ -310,7 +310,7 @@ html,body{
   <div id="ob-card" style="background:#fff;border-radius:24px;width:100%;max-width:360px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)"></div>
 </div>
 
-<div id="ao">
+<div id="ao" style="display:none">
   <!-- ÉTAPE 1 : CHOIX DE LANGUE -->
   <div id="step-lang" class="auth-step">
     <div style="background:linear-gradient(135deg,#7C3AED,#2563EB);padding:28px 20px 22px;text-align:center">
@@ -3343,3 +3343,44 @@ function renderBible(){
   h+=chapCard("nt",en?"New Testament":"Nouveau Testament","&#x271D;&#xFE0F;","#2563EB",allNt,read.nt);
   c.innerHTML=h;
 }
+<script>
+window.onload=function(){
+  // Écouter les messages du Service Worker
+  if(navigator.serviceWorker){
+    navigator.serviceWorker.addEventListener("message",function(e){
+      if(e.data&&e.data.type==="join_challenge"&&e.data.code){
+        setTimeout(function(){
+          goTo("defi");
+          setTimeout(function(){
+            var inp=document.getElementById("room-code-inp");
+            if(inp){inp.value=e.data.code;joinRoom();}
+          },500);
+        },1000);
+      }
+    });
+  }
+  try{
+    var sess=localStorage.getItem("cev_session");
+    if(sess){
+      var d=JSON.parse(sess);
+      var today=todayStr();
+      if(d.uid&&d.token){
+        S.user={id:d.uid,prenom:d.prenom,pseudo:d.pseudo||d.prenom,ville:d.ville};
+        S.token=d.token;
+        S.score=d.day===today?(d.score||0):0;
+        if(d.lang)S.lang=d.lang;
+        var ob=document.getElementById("onboarding");
+        if(ob)ob.style.display="none";
+        initApp();
+        return;
+      }
+    }
+  }catch(e){console.log("session err",e);}
+  // Nouvel utilisateur — afficher auth
+  var ao=document.getElementById("ao");
+  if(ao)ao.style.display="flex";
+  goStep("step-lang");
+};
+</script>
+</body>
+</html>
