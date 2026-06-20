@@ -487,6 +487,9 @@ html,body{
     <button class="ni" id="nav-bible" onclick="goTo('bible')"><span class="nic">📅</span><span class="nil">Bible</span></button>
     <button class="ni" id="nav-classement" onclick="goTo('classement')"><span class="nic">🏆</span><span class="nil">Classement</span></button>
   </nav>
+
+  <!-- Bouton feedback flottant -->
+  <button id="feedback-btn" onclick="openFeedback()" style="position:fixed;bottom:72px;right:14px;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;font-size:18px;cursor:pointer;box-shadow:0 4px 15px rgba(124,58,237,.4);z-index:200;display:none">💬</button>
 </div>
 <script>
 // ── SUPABASE ──────────────────────────────────────────────
@@ -935,7 +938,18 @@ async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
 }
 
 // ── PUSH NOTIFICATIONS ─────────────────────────────────────
-var OS_APP_ID="d2f59331-4855-48b6-9c39-e236ebe11ce0";
+var FEEDBACK_URL="https://docs.google.com/forms/d/e/1FAIpQLSeiD9j1OPuAjFqXz7lpTAJEAk81vVLfPL9zYOyEsI-yaD6npQ/viewform";
+
+function openFeedback(){
+  var pseudo=S.user?(S.user.pseudo||S.user.prenom):"";
+  var url=FEEDBACK_URL+"?usp=sf_link&entry.1401162510="+encodeURIComponent(pseudo);
+  window.open(url,"_blank");
+}
+
+function showFeedbackBtn(){
+  var btn=document.getElementById("feedback-btn");
+  if(btn)btn.style.display="block";
+}
 
 async function notifyAllPlayers(roomCode,maxPlayers){
   try{
@@ -1950,7 +1964,7 @@ async function saveScore(){
     var wn=Math.ceil(((d-soy)/86400000+soy.getDay()+1)/7);
     var week=today.slice(0,4)+"-W"+String(wn).padStart(2,"0");
     var month=today.slice(0,7);
-    var body={user_id:S.user.id,prenom:S.user.prenom,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
+    var body={user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
     // Toujours faire un UPSERT propre
     var r=await fetch(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
       method:"POST",
@@ -2278,6 +2292,7 @@ function initApp(){
     if(sstreakEl)sstreakEl.textContent=streak.count>0?"🔥 "+streak.count:"—";
   }
   updateXPBar();
+  showFeedbackBtn();
   if(window.speechSynthesis){
     window.speechSynthesis.getVoices();
     window.speechSynthesis.addEventListener("voiceschanged",function(){});
@@ -2596,7 +2611,7 @@ async function joinRoomAsPlayer(roomId){
   await fetch(SB_URL+"/rest/v1/cev_room_players?on_conflict=room_id,user_id",{
     method:"POST",
     headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
-    body:JSON.stringify({room_id:roomId,user_id:S.user.id,prenom:S.user.prenom,score:0,ready:false,online:true})
+    body:JSON.stringify({room_id:roomId,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true})
   });
 }
 
