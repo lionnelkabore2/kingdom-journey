@@ -943,7 +943,17 @@ var FEEDBACK_URL="https://docs.google.com/forms/d/e/1FAIpQLSeiD9j1OPuAjFqXz7lpTA
 function openFeedback(){
   var pseudo=S.user?(S.user.pseudo||S.user.prenom):"";
   var url=FEEDBACK_URL+"?usp=sf_link&entry.1401162510="+encodeURIComponent(pseudo);
-  window.open(url,"_blank");
+  // Ouvrir dans un popup par-dessus l'app
+  var overlay=document.createElement("div");
+  overlay.id="feedback-overlay";
+  overlay.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;flex-direction:column";
+  overlay.innerHTML=
+    '<div style="background:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--purple)">'
+    +'<span style="font-weight:800;font-size:13px;color:var(--purple)">💬 '+(S.lang==="en"?"Feedback":"Vos commentaires")+'</span>'
+    +'<button onclick="document.getElementById(\'feedback-overlay\').remove()" style="background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:none;border-radius:20px;padding:5px 14px;font-family:Nunito,sans-serif;font-weight:700;font-size:12px;cursor:pointer">✕ '+(S.lang==="en"?"Close & return":"Fermer et revenir")+'</button>'
+    +'</div>'
+    +'<iframe src="'+url+'" style="flex:1;border:none;width:100%" allow="autoplay"></iframe>';
+  document.body.appendChild(overlay);
 }
 
 function showFeedbackBtn(){
