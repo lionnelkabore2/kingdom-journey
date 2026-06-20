@@ -296,6 +296,7 @@ html,body{
 .defi-timer{font-family:"Playfair Display",serif;font-size:42px;font-weight:900;text-align:center;color:var(--purple);margin:6px 0;transition:color .3s}
 .defi-timer.urgent{color:var(--red);animation:urgentPulse .5s infinite alternate}
 @keyframes urgentPulse{from{transform:scale(1)}to{transform:scale(1.1)}}
+@keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
 .defi-winner{text-align:center;padding:20px;background:linear-gradient(135deg,var(--gold),var(--orange));border-radius:16px;margin-bottom:10px;color:#fff}
 .defi-input{width:100%;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-family:Nunito,sans-serif;font-size:22px;text-align:center;letter-spacing:8px;font-weight:800;color:var(--purple);margin:10px 0;outline:none}
 .defi-input:focus{border-color:var(--purple)}
@@ -959,6 +960,63 @@ function openFeedback(){
 function showFeedbackBtn(){
   var btn=document.getElementById("feedback-btn");
   if(btn)btn.style.display="block";
+}
+
+// Suggérer le feedback toutes les 10 fermetures
+function initExitPrompt(){
+  window.addEventListener("beforeunload",function(){
+    try{
+      var key="cev_exit_count_"+(S.user?S.user.id:"");
+      var count=parseInt(localStorage.getItem(key)||"0")+1;
+      localStorage.setItem(key,String(count));
+    }catch(e){}
+  });
+
+  // Détecter quand l'app perd le focus (minimisée / écran accueil sur mobile)
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="hidden"&&S.user){
+      try{
+        var key="cev_exit_count_"+(S.user?S.user.id:"");
+        var count=parseInt(localStorage.getItem(key)||"0")+1;
+        localStorage.setItem(key,String(count));
+      }catch(e){}
+    }
+    if(document.visibilityState==="visible"&&S.user){
+      try{
+        var key="cev_exit_count_"+(S.user?S.user.id:"");
+        var count=parseInt(localStorage.getItem(key)||"0");
+        if(count>0&&count%10===0){
+          // Réinitialiser pour éviter de reproposer immédiatement
+          localStorage.setItem(key,"0");
+          // Afficher le popup de suggestion après 2s
+          setTimeout(showFeedbackSuggestion,2000);
+        }
+      }catch(e){}
+    }
+  });
+}
+
+function showFeedbackSuggestion(){
+  if(document.getElementById("feedback-suggest"))return;
+  var fr=(S.lang!=="en");
+  var div=document.createElement("div");
+  div.id="feedback-suggest";
+  div.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:8000;width:calc(100% - 32px);max-width:360px;border-top:4px solid #7C3AED;animation:slideUp .3s ease";
+  div.innerHTML=
+    '<div style="font-size:22px;text-align:center;margin-bottom:6px">💬</div>'
+    +'<div style="font-family:Playfair Display,serif;font-weight:900;font-size:15px;color:#1F2937;text-align:center;margin-bottom:6px">'
+    +(fr?"Ton avis nous aide !":"Your feedback helps us!")+'</div>'
+    +'<div style="font-size:11px;color:#6B7280;text-align:center;margin-bottom:12px">'
+    +(fr?"2 minutes pour améliorer l'app pour toi et toute la communauté C.E.V 🙏":"2 minutes to improve the app for you and the whole C.E.V community 🙏")+'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="document.getElementById(\'feedback-suggest\').remove()" style="flex:1;padding:10px;background:#F3F4F6;border:none;border-radius:12px;font-family:Nunito,sans-serif;font-weight:700;font-size:12px;cursor:pointer;color:#6B7280">'
+    +(fr?"Plus tard":"Later")+'</button>'
+    +'<button onclick="document.getElementById(\'feedback-suggest\').remove();openFeedback()" style="flex:2;padding:10px;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;border:none;border-radius:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:12px;cursor:pointer">'
+    +(fr?"Donner mon avis ✝️":"Give feedback ✝️")+'</button>'
+    +'</div>';
+  document.body.appendChild(div);
+  // Auto-disparaître après 8 secondes
+  setTimeout(function(){if(div.parentNode)div.remove();},8000);
 }
 
 async function notifyAllPlayers(roomCode,maxPlayers){
@@ -2303,6 +2361,7 @@ function initApp(){
   }
   updateXPBar();
   showFeedbackBtn();
+  initExitPrompt();
   if(window.speechSynthesis){
     window.speechSynthesis.getVoices();
     window.speechSynthesis.addEventListener("voiceschanged",function(){});
