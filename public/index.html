@@ -2578,43 +2578,63 @@ function updateSizeDisplay(v){
 }
 
 async function createRoom(){
-  if(!S.user)return;
+  if(!S.user){alert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
+  if(!S.token){alert(S.lang==="fr"?"Session expirée, reconnecte-toi":"Session expired, please log in again");return;}
   if(getDefiUsed()>=DEFI_MAX_PER_DAY){
     alert(S.lang==="fr"?"Limite de 10 challenges atteinte aujourd'hui !":"10 challenge limit reached today!");
     return;
   }
-  var code=genCode();
-  var qs=getMixedQuestions().slice(0,10);
-  var qData=qs.map(function(q){return{q:q.q,qe:q.qe,opts:q.opts,ans:q.ans,ref:q.ref,diff:q.diff||"easy"};});
-  var pseudo=S.user.pseudo||S.user.prenom;
-  var r=await fetch(SB_URL+"/rest/v1/cev_rooms",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"return=representation"},
-    body:JSON.stringify({code:code,host_id:S.user.id,host_name:pseudo,status:"waiting",max_players:DEFI_SIZE,current_q:0,total_q:10,q_data:qData})
-  });
-  var data=await r.json();
-  var room=Array.isArray(data)?data[0]:data;
-  if(!room||!room.id){alert("Erreur création salle");return;}
-  DEFI.room=room;DEFI.qs=qData;
-  await joinRoomAsPlayer(room.id);
-  saveDefiSession();
-  subscribeRoom(room.id);
-  // Envoyer notification push à tous les joueurs
-  notifyAllPlayers(code,DEFI_SIZE);
-  // Aussi sauvegarder en base pour le polling
-  sbFetch("cev_notifications",{
-    method:"POST",
-    headers:{"Authorization":"Bearer "+S.token},
-    body:JSON.stringify({
-      type:"challenge",
-      message:JSON.stringify({
-        title:"⚔️ Challenge Biblique !",
-        body:(S.user.pseudo||S.user.prenom)+" "+(S.lang==="en"?"created a challenge for ":"crée un challenge pour ")+DEFI_SIZE+" "+(S.lang==="en"?"players! Code: ":"joueurs ! Code : ")+code,
-        code:code
-      })
-    })
-  });
-  renderDefiWaiting();
+  var btn=document.querySelector(".defi-btn");
+  if(btn){btn.disabled=true;btn.textContent="...";}
+  try{
+    var code=genCode();
+    var qs=getMixedQuestions();
+    if(!qs||qs.length===0){
+      // Régénérer si vide
+      S.tq.mixed=getMixedQuestions();
+      qs=S.tq.mixed;
+    }
+    qs=qs.slice(0,10);
+    // Alléger qData — enlever les champs lourds
+    var qData=qs.map(function(q){
+      return{q:q.q,qe:q.qe||q.q,opts:q.opts,ans:q.ans,diff:q.diff||"easy"};
+    });
+    var pseudo=S.user.pseudo||S.user.prenom;
+    var r=await fetch(SB_URL+"/rest/v1/cev_rooms",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"return=representation"},
+      body:JSON.stringify({code:code,host_id:S.user.id,host_name:pseudo,status:"waiting",max_players:DEFI_SIZE,current_q:0,total_q:10,q_data:qData})
+    });
+    if(!r.ok){
+      var errText=await r.text();
+      console.log("createRoom error:",r.status,errText);
+      if(r.status===401||r.status===403){
+        alert(S.lang==="fr"?"Session expirée. Déconnecte-toi et reconnecte-toi.":"Session expired. Please log out and log in again.");
+      } else {
+        alert((S.lang==="fr"?"Erreur ":"Error ")+r.status+". "+(S.lang==="fr"?"Réessaie dans quelques secondes.":"Try again in a few seconds."));
+      }
+      if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
+      return;
+    }
+    var data=await r.json();
+    var room=Array.isArray(data)?data[0]:data;
+    if(!room||!room.id){
+      alert(S.lang==="fr"?"Erreur création salle. Réessaie.":"Room creation failed. Try again.");
+      if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
+      return;
+    }
+    incDefiUsed();
+    DEFI.room=room;DEFI.qs=qData;
+    await joinRoomAsPlayer(room.id);
+    saveDefiSession();
+    subscribeRoom(room.id);
+    notifyAllPlayers(code,DEFI_SIZE);
+    renderDefiWaiting();
+  }catch(e){
+    console.log("createRoom exception:",e);
+    alert(S.lang==="fr"?"Erreur réseau: "+e.message:"Network error: "+e.message);
+    if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
+  }
 }
 
 async function joinRoom(){
@@ -3373,12 +3393,29 @@ function startBible(days){
   renderBible();
 }
 
-function renderBible(){
-  var c=document.getElementById("bible-cont");if(!c)return;
+function getBibleModeKey(){return"cev_bible_mode_"+(S.user?S.user.id:"anon");}
+function getBibleMode(){try{return localStorage.getItem(getBibleModeKey())||"";}catch(e){return "";}}
+function setBibleMode(m){try{localStorage.setItem(getBibleModeKey(),m);}catch(e){}}
+
+function getBibleLinearKey(){return"cev_bible_linear_"+(S.user?S.user.id:"anon");}
+function getBibleLinear(){try{var r=localStorage.getItem(getBibleLinearKey());return r?JSON.parse(r):{testament:"at",minutesPerDay:15,startDay:null,read:[]};}catch(e){return{testament:"at",minutesPerDay:15,startDay:null,read:[]};}}
+function saveBibleLinear(d){try{localStorage.setItem(getBibleLinearKey(),JSON.stringify(d));}catch(e){}}
+
+// Plan linéaire : tous les chapitres AT puis NT dans l'ordre
+var LINEAR_AT=[];var LINEAR_NT=[];
+(function(){
+  var at_books=[["Genèse",50],["Exode",40],["Lévitique",27],["Nombres",36],["Deutéronome",34],["Josué",24],["Juges",21],["Ruth",4],["1 Samuel",31],["2 Samuel",24],["1 Rois",22],["2 Rois",25],["1 Chroniques",29],["2 Chroniques",36],["Esdras",10],["Néhémie",13],["Esther",10],["Job",42],["Psaumes",150],["Proverbes",31],["Ecclésiaste",12],["Cantique",8],["Ésaïe",66],["Jérémie",52],["Lamentations",5],["Ézéchiel",48],["Daniel",12],["Osée",14],["Joël",3],["Amos",9],["Abdias",1],["Jonas",4],["Michée",7],["Nahum",3],["Habacuc",3],["Sophonie",3],["Aggée",2],["Zacharie",14],["Malachie",4]];
+  var nt_books=[["Matthieu",28],["Marc",16],["Luc",24],["Jean",21],["Actes",28],["Romains",16],["1 Corinthiens",16],["2 Corinthiens",13],["Galates",6],["Éphésiens",6],["Philippiens",4],["Colossiens",4],["1 Thessaloniciens",5],["2 Thessaloniciens",3],["1 Timothée",6],["2 Timothée",4],["Tite",3],["Philémon",1],["Hébreux",13],["Jacques",5],["1 Pierre",5],["2 Pierre",3],["1 Jean",5],["2 Jean",1],["3 Jean",1],["Jude",1],["Apocalypse",22]];
+  for(var i=0;i<at_books.length;i++)for(var c=1;c<=at_books[i][1];c++)LINEAR_AT.push(at_books[i][0]+" "+c);
+  for(var i=0;i<nt_books.length;i++)for(var c=1;c<=nt_books[i][1];c++)LINEAR_NT.push(nt_books[i][0]+" "+c);
+})();
+
+
+function renderBiblePlan(c,en){
   var startDay=getBibleStartDay();
   var plan=parseInt(getBiblePlan())||365;
-  var en=(S.lang==="en");
 
+  // Choix du plan si pas encore commencé
   if(startDay===null){
     var plans=[
       {days:90,label:en?"3 months":"3 mois",sub:en?"~30 min/day":"~30 min/jour",color:"#DC2626",bg:"#FEF2F2",border:"#EF4444"},
@@ -3386,11 +3423,9 @@ function renderBible(){
       {days:365,label:en?"1 year":"1 an",sub:en?"~15 min/day":"~15 min/jour",color:"#059669",bg:"#ECFDF5",border:"#059669"},
       {days:730,label:en?"2 years":"2 ans",sub:en?"~8 min/day":"~8 min/jour",color:"#7C3AED",bg:"#EDE9FE",border:"#7C3AED"}
     ];
-    var h='<div style="background:linear-gradient(135deg,#7C3AED,#2563EB);border-radius:16px;padding:18px;text-align:center;margin-bottom:13px;color:#fff">'
-      +'<div style="font-size:40px;margin-bottom:8px">&#x1F4DA;</div>'
-      +'<h2 style="font-family:Playfair Display,serif;font-size:18px;margin-bottom:8px">'+(en?"Read my Bible":"Lire ma Bible")+'</h2>'
-      +'<p style="font-size:11px;color:rgba(255,255,255,.85);line-height:1.7">'+(en?"Each day: 2 chap. OT + 1 Psalm/Proverb + 1 chap. NT":"Chaque jour : 2 chap. AT + 1 Psaume/Proverbe + 1 chap. NT")+'</p></div>'
-      +'<div style="margin-bottom:10px;font-weight:700;font-size:12px;color:#374151;text-align:center">'+(en?"Choose your plan:":"Choisis ton plan :")+'</div>'
+    var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:13px">'
+      +'<button onclick="setBibleMode(\'\');renderBible()" style="background:none;border:none;font-size:20px;cursor:pointer">&#8592;</button>'
+      +'<span style="font-weight:800;font-size:14px;color:#1F2937">&#x1F4C5; '+(en?"Choose your plan":"Choisis ton plan")+'</span></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
     for(var i=0;i<plans.length;i++){
       var p=plans[i];
@@ -3403,6 +3438,7 @@ function renderBible(){
     return;
   }
 
+  // Plan en cours
   var today=getDayOfYear();
   var read=getBibleRead();
   var total=plan*4;
@@ -3411,7 +3447,11 @@ function renderBible(){
   var status=getBibleStatus(read,startDay,today);
   var planLabel=plan===90?(en?"3 months":"3 mois"):plan===180?(en?"6 months":"6 mois"):plan===365?(en?"1 year":"1 an"):(en?"2 years":"2 ans");
 
-  var h='<div style="background:'+status.bg+';border:2px solid '+status.border+';border-radius:13px;padding:10px 13px;margin-bottom:9px">'
+  var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+    +'<button onclick="setBibleMode(\'\');renderBible()" style="background:none;border:none;font-size:20px;cursor:pointer">&#8592;</button>'
+    +'<span style="font-weight:800;font-size:13px;color:#1F2937">&#x1F4C5; '+(en?"Reading Plan":"Plan de lecture")+'</span></div>';
+
+  h+='<div style="background:'+status.bg+';border:2px solid '+status.border+';border-radius:13px;padding:10px 13px;margin-bottom:9px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
     +'<span style="font-weight:800;font-size:11px;color:'+status.color+'">'+status.label+'</span>'
     +'<span style="font-size:9px;color:'+status.color+'">'+pct+'% - '+planLabel+'</span></div>'
@@ -3419,7 +3459,7 @@ function renderBible(){
     +'<div style="height:100%;width:'+pct+'%;background:'+status.color+';border-radius:4px;transition:width .6s"></div></div>'
     +'<div style="display:flex;justify-content:space-between;margin-top:4px">'
     +'<span style="font-size:9px;color:'+status.color+'">'+done+'/'+total+' '+(en?"chapters":"chapitres")+'</span>'
-    +'<button onclick="localStorage.removeItem(getBibleStartKey());localStorage.removeItem(getBiblePlanKey());renderBible();" style="background:none;border:none;font-size:9px;color:#9CA3AF;cursor:pointer;font-family:Nunito">'+(en?"Change plan":"Changer plan")+'</button>'
+    +'<button onclick="if(confirm(\''+(en?"Reset plan?":"Recommencer ?")+'\''+')){localStorage.removeItem(getBibleStartKey());localStorage.removeItem(getBiblePlanKey());renderBible();}" style="background:none;border:none;font-size:9px;color:#9CA3AF;cursor:pointer;font-family:Nunito">'+(en?"Change":"Changer")+'</button>'
     +'</div></div>';
 
   function nextChap(all,r){for(var i=0;i<all.length;i++){if(r.indexOf(all[i])===-1)return all[i];}return null;}
@@ -3433,7 +3473,7 @@ function renderBible(){
 
   function chapCard(sec,label,emoji,color,all,r){
     var chap=nextChap(all,r);
-    if(!chap)return'<div style="background:#F0FDF4;border-radius:13px;padding:10px;margin-bottom:8px;text-align:center;border:2px solid #059669"><strong style="color:#059669">&#x1F389; '+label+' '+(en?"done!":"termine !")+'</strong></div>';
+    if(!chap)return'<div style="background:#F0FDF4;border-radius:13px;padding:10px;margin-bottom:8px;text-align:center;border:2px solid #059669"><strong style="color:#059669">&#x1F389; '+label+' '+(en?"done!":"terminé !")+'</strong></div>';
     var isRead=(r.indexOf(chap)>-1);
     var pct2=Math.min(100,Math.round((r.length/all.length)*100));
     return'<div style="background:#fff;border-radius:13px;padding:11px 12px;margin-bottom:8px;box-shadow:var(--sh);border-left:4px solid '+color+'">'
@@ -3443,7 +3483,7 @@ function renderBible(){
       +'<div style="height:3px;background:#E5E7EB;border-radius:4px;margin-bottom:8px"><div style="height:100%;width:'+pct2+'%;background:'+color+';border-radius:4px"></div></div>'
       +'<div style="display:flex;align-items:center;justify-content:space-between">'
       +'<div style="font-weight:700;font-size:14px;color:#1F2937">'+chap+'</div>'
-      +'<button onclick="toggleBibleChap(&apos;'+sec+'&apos;,&apos;'+chap+'&apos;)" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+color+","+color+"CC)")+';color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer">'+(isRead?(en?"&#x2705; Read":"&#x2705; Lu"):(en?"Mark read":"Marquer lu"))+'</button>'
+      +'<button onclick="toggleBibleChap(\''+sec+'\',\''+chap.replace(/\'/g,"\\'")+'\''+')" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+color+","+color+"CC)")+';color:#fff;border:none;border-radius:10px;padding:7px 12px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer">'+(isRead?(en?"✅ Read":"✅ Lu"):(en?"Mark read":"Marquer lu"))+'</button>'
       +'</div></div>';
   }
 
@@ -3453,6 +3493,182 @@ function renderBible(){
   c.innerHTML=h;
 }
 
+function renderBibleLinear(c,en){
+  var data=getBibleLinear();
+
+  // Étape 1 : pas encore configuré — choisir le temps
+  if(!data.startDay){
+    var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:13px">'
+      +'<button onclick="setBibleMode(\'\');renderBible()" style="background:none;border:none;font-size:20px;cursor:pointer">&#8592;</button>'
+      +'<span style="font-weight:800;font-size:14px;color:#1F2937">&#x1F4D6; '+(en?"Linear Reading":"Lecture linéaire")+'</span></div>'
+      +'<div style="background:#fff;border-radius:16px;padding:18px;box-shadow:var(--sh);margin-bottom:12px">'
+      +'<h3 style="font-weight:800;font-size:14px;color:#1F2937;margin-bottom:12px;text-align:center">&#x23F1;&#xFE0F; '+(en?"How much time per day?":"Combien de temps par jour ?")+'</h3>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">';
+    var times=en?[{m:10,l:"10 min"},{m:15,l:"15 min"},{m:20,l:"20 min"},{m:30,l:"30 min"},{m:45,l:"45 min"},{m:60,l:"1 hour"}]
+                :[{m:10,l:"10 min"},{m:15,l:"15 min"},{m:20,l:"20 min"},{m:30,l:"30 min"},{m:45,l:"45 min"},{m:60,l:"1 heure"}];
+    for(var i=0;i<times.length;i++){
+      var active=(data.minutesPerDay===times[i].m);
+      h+='<button onclick="selectLinearTime('+times[i].m+')" id="lt-'+times[i].m+'" style="padding:12px;border:2px solid '+(active?'#7C3AED':'#E5E7EB')+';border-radius:12px;background:'+(active?'var(--purplel)':'#F9FAFB')+';font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;color:'+(active?'#7C3AED':'#374151')+'">'+times[i].l+'</button>';
+    }
+    h+='</div>';
+    // Calcul de la durée
+    var totalChaps=1189; // AT 929 + NT 260
+    var chapsPerDay=Math.max(1,Math.floor(data.minutesPerDay/5)); // ~5 min/chapitre
+    var daysNeeded=Math.ceil(totalChaps/chapsPerDay);
+    var finishDate=new Date();finishDate.setDate(finishDate.getDate()+daysNeeded);
+    var finishStr=finishDate.toLocaleDateString(en?"en-US":"fr-FR",{day:"numeric",month:"long",year:"numeric"});
+    h+='<div style="background:linear-gradient(135deg,#EDE9FE,#DBEAFE);border-radius:12px;padding:12px;text-align:center;margin-bottom:14px">'
+      +'<div style="font-size:11px;color:#6B7280;margin-bottom:4px">'+(en?"At this pace, you will finish the Bible on:":"À ce rythme, tu finiras la Bible le :")+'</div>'
+      +'<div style="font-weight:900;font-size:16px;color:#7C3AED" id="finish-date">'+finishStr+'</div>'
+      +'<div style="font-size:10px;color:#6B7280;margin-top:2px" id="finish-days">'+(en?"("+daysNeeded+" days · ~"+chapsPerDay+" chapters/day)":"("+daysNeeded+" jours · ~"+chapsPerDay+" chapitres/jour)")+'</div>'
+      +'</div>';
+    h+='</div>'
+    // Choix Testament
+    +'<div style="background:#fff;border-radius:16px;padding:16px;box-shadow:var(--sh)">'
+    +'<h3 style="font-weight:800;font-size:13px;color:#1F2937;margin-bottom:10px;text-align:center">'+(en?"Where to start?":"Par où commencer ?")+'</h3>'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<button onclick="selectLinearTestament(\'at\')" id="lt-at" style="flex:1;padding:14px 8px;border:2px solid '+(data.testament==="at"?'#7C3AED':'#E5E7EB')+';border-radius:12px;background:'+(data.testament==="at"?'var(--purplel)':'#F9FAFB')+';font-family:Nunito,sans-serif;font-weight:700;font-size:12px;cursor:pointer;color:'+(data.testament==="at"?'#7C3AED':'#374151')+';text-align:center">'
+    +'<div style="font-size:20px;margin-bottom:4px">&#x1F4DC;</div>'+(en?"Old Testament":"Ancien Testament")+'<br><span style="font-size:9px;font-weight:400;color:#9CA3AF">Genèse → Malachie</span></button>'
+    +'<button onclick="selectLinearTestament(\'nt\')" id="lt-nt" style="flex:1;padding:14px 8px;border:2px solid '+(data.testament==="nt"?'#2563EB':'#E5E7EB')+';border-radius:12px;background:'+(data.testament==="nt"?'var(--bluel)':'#F9FAFB')+';font-family:Nunito,sans-serif;font-weight:700;font-size:12px;cursor:pointer;color:'+(data.testament==="nt"?'#2563EB':'#374151')+';text-align:center">'
+    +'<div style="font-size:20px;margin-bottom:4px">&#x271D;&#xFE0F;</div>'+(en?"New Testament":"Nouveau Testament")+'<br><span style="font-size:9px;font-weight:400;color:#9CA3AF">Matthieu → Apocalypse</span></button>'
+    +'</div>'
+    +'<button onclick="startLinearReading()" style="width:100%;background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;border:none;border-radius:14px;padding:13px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer">&#x270F;&#xFE0F; '+(en?"Start reading!":"Commencer la lecture !")+'</button>'
+    +'</div>';
+    c.innerHTML=h;
+    return;
+  }
+
+  // Lecture en cours
+  var allChaps=data.testament==="at"?LINEAR_AT:LINEAR_NT;
+  var done=data.read.length;
+  var total=allChaps.length;
+  var pct=Math.min(100,Math.round((done/total)*100));
+  var chapsPerDay=Math.max(1,Math.floor(data.minutesPerDay/5));
+  var remaining=total-done;
+  var daysLeft=Math.ceil(remaining/chapsPerDay);
+  var finishDate=new Date();finishDate.setDate(finishDate.getDate()+daysLeft);
+  var finishStr=finishDate.toLocaleDateString(en?"en-US":"fr-FR",{day:"numeric",month:"long"});
+  var nextChap=null;
+  for(var i=0;i<allChaps.length;i++){if(data.read.indexOf(allChaps[i])===-1){nextChap=allChaps[i];break;}}
+
+  var testamentLabel=data.testament==="at"?(en?"Old Testament":"Ancien Testament"):(en?"New Testament":"Nouveau Testament");
+  var testamentColor=data.testament==="at"?"#7C3AED":"#2563EB";
+
+  var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+    +'<button onclick="setBibleMode(\'\');renderBible()" style="background:none;border:none;font-size:20px;cursor:pointer">&#8592;</button>'
+    +'<span style="font-weight:800;font-size:13px;color:#1F2937">&#x1F4D6; '+testamentLabel+'</span></div>'
+    +'<div style="background:#fff;border-radius:14px;padding:13px;margin-bottom:9px;box-shadow:var(--sh)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+    +'<span style="font-weight:800;font-size:12px;color:'+testamentColor+'">'+pct+'% '+(en?"completed":"complété")+'</span>'
+    +'<span style="font-size:10px;color:#6B7280">'+done+'/'+total+' '+(en?"chap.":"chap.")+'</span></div>'
+    +'<div style="height:8px;background:#E5E7EB;border-radius:4px;overflow:hidden;margin-bottom:6px">'
+    +'<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,'+testamentColor+',#7C3AED);border-radius:4px;transition:width .5s"></div></div>'
+    +'<div style="font-size:10px;color:#6B7280;text-align:center">'+(en?"Finish on ":"Fin le ")+finishStr+' · '+daysLeft+' '+(en?"days left":"jours restants")+'</div></div>';
+
+  if(nextChap){
+    var isRead=(data.read.indexOf(nextChap)>-1);
+    h+='<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:9px;box-shadow:var(--sh);border-left:4px solid '+testamentColor+'">'
+      +'<div style="font-size:10px;font-weight:800;color:'+testamentColor+';text-transform:uppercase;margin-bottom:6px">'+(en?"Next chapter":"Prochain chapitre")+'</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between">'
+      +'<div style="font-weight:800;font-size:18px;color:#1F2937">'+nextChap+'</div>'
+      +'<button onclick="toggleLinearChap(\''+nextChap.replace(/\'/g,"\\'")+'\''+')" style="background:'+(isRead?"#059669":"linear-gradient(135deg,"+testamentColor+",#7C3AED)")+';color:#fff;border:none;border-radius:11px;padding:9px 16px;font-family:Nunito,sans-serif;font-weight:800;font-size:12px;cursor:pointer">'
+      +(isRead?(en?"✅ Read":"✅ Lu"):(en?"Mark read":"Marquer lu"))+'</button></div></div>';
+  } else {
+    h+='<div style="background:#F0FDF4;border-radius:14px;padding:20px;text-align:center;border:2px solid #059669">'
+      +'<div style="font-size:36px;margin-bottom:8px">&#x1F389;</div>'
+      +'<div style="font-weight:800;font-size:16px;color:#059669">'+(en?"Testament completed! 🙏":"Testament terminé ! 🙏")+'</div>'
+      +'<button onclick="switchLinearTestament()" style="margin-top:10px;background:#059669;color:#fff;border:none;border-radius:12px;padding:10px 20px;font-family:Nunito,sans-serif;font-weight:700;cursor:pointer">'
+      +(data.testament==="at"?(en?"Start New Testament →":"Commencer le NT →"):(en?"Restart Old Testament →":"Recommencer AT →"))+'</button>'
+      +'</div>';
+  }
+  c.innerHTML=h;
+}
+
+function selectLinearTime(mins){
+  var d=getBibleLinear();
+  d.minutesPerDay=mins;
+  saveBibleLinear(d);
+  renderBible();
+}
+
+function selectLinearTestament(t){
+  var d=getBibleLinear();
+  d.testament=t;
+  saveBibleLinear(d);
+  renderBible();
+}
+
+function startLinearReading(){
+  var d=getBibleLinear();
+  d.startDay=getDayOfYear();
+  d.read=[];
+  saveBibleLinear(d);
+  renderBible();
+}
+
+function toggleLinearChap(chap){
+  var d=getBibleLinear();
+  var idx=d.read.indexOf(chap);
+  if(idx>-1){d.read.splice(idx,1);}
+  else{d.read.push(chap);addXP(5);
+    var b=document.createElement("div");
+    b.style.cssText="position:fixed;top:80px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 14px;border-radius:14px;font-weight:700;font-size:11px;z-index:9999";
+    b.textContent="&#x1F4D6; +5 XP";document.body.appendChild(b);
+    setTimeout(function(){if(b.parentNode)b.remove();},1800);
+  }
+  saveBibleLinear(d);
+  renderBible();
+}
+
+function switchLinearTestament(){
+  var d=getBibleLinear();
+  d.testament=d.testament==="at"?"nt":"at";
+  d.read=[];
+  d.startDay=getDayOfYear();
+  saveBibleLinear(d);
+  renderBible();
+}
+function renderBible(){
+  var c=document.getElementById("bible-cont");if(!c)return;
+  var en=(S.lang==="en");
+  var mode=getBibleMode();
+
+  // ÉTAPE 1 : Choix du type de lecture
+  if(!mode){
+    var h='<div style="background:linear-gradient(135deg,#7C3AED,#2563EB);border-radius:16px;padding:18px;text-align:center;margin-bottom:14px;color:#fff">'
+      +'<div style="font-size:42px;margin-bottom:8px">&#x1F4D6;</div>'
+      +'<h2 style="font-family:Playfair Display,serif;font-size:18px;margin-bottom:6px">'+(en?"Read my Bible":"Lire ma Bible")+'</h2>'
+      +'<p style="font-size:11px;color:rgba(255,255,255,.85)">'+(en?"Choose your reading mode":"Choisis ton mode de lecture")+'</p>'
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:12px">'
+      // Option 1 : Plan de lecture
+      +'<button onclick="setBibleMode(&apos;plan&apos;);renderBible()" style="background:#fff;border:2px solid #7C3AED;border-radius:16px;padding:16px 14px;text-align:left;cursor:pointer;box-shadow:0 4px 12px rgba(124,58,237,.15)">'
+        +'<div style="display:flex;align-items:center;gap:12px">'
+          +'<div style="font-size:32px">&#x1F4C5;</div>'
+          +'<div>'
+            +'<div style="font-weight:800;font-size:14px;color:#7C3AED">'+(en?"Bible Reading Plan":"Plan de lecture biblique")+'</div>'
+            +'<div style="font-size:11px;color:#6B7280;margin-top:2px">'+(en?"Balanced: OT + Psalms + NT each day":"Équilibré : AT + Psaumes + NT chaque jour")+'</div>'
+          +'</div>'
+        +'</div>'
+      +'</button>'
+      // Option 2 : Lecture linéaire
+      +'<button onclick="setBibleMode(&apos;linear&apos;);renderBible()" style="background:#fff;border:2px solid #2563EB;border-radius:16px;padding:16px 14px;text-align:left;cursor:pointer;box-shadow:0 4px 12px rgba(37,99,235,.15)">'
+        +'<div style="display:flex;align-items:center;gap:12px">'
+          +'<div style="font-size:32px">&#x1F4D6;</div>'
+          +'<div>'
+            +'<div style="font-weight:800;font-size:14px;color:#2563EB">'+(en?"Linear Reading":"Lecture linéaire")+'</div>'
+            +'<div style="font-size:11px;color:#6B7280;margin-top:2px">'+(en?"Chapter by chapter, at your own pace":"Chapitre par chapitre, à ton rythme")+'</div>'
+          +'</div>'
+        +'</div>'
+      +'</button>'
+      +'</div>';
+    c.innerHTML=h;
+    return;
+  }
+
+  if(mode==="plan") renderBiblePlan(c,en);
+  else if(mode==="linear") renderBibleLinear(c,en);
+}
 </script>
 <script>
 window.onload=function(){
