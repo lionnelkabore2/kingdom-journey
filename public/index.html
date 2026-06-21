@@ -771,30 +771,28 @@ async function doRegEmail(){
   var pw=document.getElementById("inp-pw").value;
   var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";
   if(!prenom||!contact||!pw){showMsg(t("err_fields"));return;}
-  showMsg("⏳ "+(S.lang==="en"?"Registering...":"Inscription en cours..."),true);
+  showMsg("⏳ "+(S.lang==="en"?"Creating account...":"Création du compte..."),true);
   var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
-  // Inscription
   var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
   if(!r.ok){
-    var errMsg=r.data.error_description||r.data.msg||r.data.message||"Erreur inscription";
-    if(errMsg.toLowerCase().includes("already"))errMsg=S.lang==="en"?"Email already registered. Try logging in.":"Email déjà utilisé. Essaie de te connecter.";
+    var errMsg=r.data.error_description||r.data.msg||r.data.message||"Erreur";
+    if(errMsg.toLowerCase().includes("already"))errMsg=S.lang==="en"?"Email already used. Try logging in.":"Email déjà utilisé. Connecte-toi.";
     showMsg(errMsg);return;
   }
   var tok=r.data.access_token;
   var uid=r.data.user?r.data.user.id:null;
-  // Si pas de token (confirmation email désactivée mais pas de session), faire un login
   if(!tok||!uid){
-    showMsg("⏳ "+(S.lang==="en"?"Connecting...":"Connexion..."),true);
+    // Fallback login silencieux
     var lr=await sbAuth("token?grant_type=password",{email:email,password:pw});
-    if(!lr.ok){showMsg(S.lang==="en"?"Account created, please log in.":"Compte créé, connecte-toi maintenant.");return;}
-    tok=lr.data.access_token;
-    uid=lr.data.user?lr.data.user.id:null;
+    if(!lr.ok){showMsg(S.lang==="en"?"Account created! Please log in.":"Compte créé ! Connecte-toi.");return;}
+    tok=lr.data.access_token;uid=lr.data.user?lr.data.user.id:null;
   }
-  if(!uid){showMsg("Erreur: pas d'utilisateur");return;}
+  if(!uid){showMsg("Erreur");return;}
+  // Entrer dans l'app immédiatement, créer le profil en arrière-plan
   createProfile(uid,prenomClean,ville,tok,pseudoClean);
-  await loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean);
+  loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean); // pas de await
 }
 
 async function doRegName(){
@@ -802,7 +800,7 @@ async function doRegName(){
   var pseudo=document.getElementById("inp-pseudo2").value.trim()||prenom;
   var ville=document.getElementById("inp-ville2").value.trim()||"Non precisee";
   if(!prenom){showMsg(t("err_fields"));return;}
-  showMsg("⏳ "+(S.lang==="en"?"Registering...":"Inscription en cours..."),true);
+  showMsg("⏳ "+(S.lang==="en"?"Creating account...":"Création du compte..."),true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
   var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";
@@ -815,9 +813,9 @@ async function doRegName(){
     var lr=await sbAuth("token?grant_type=password",{email:fakeEmail,password:fakePw});
     if(lr.ok){tok=lr.data.access_token;uid=lr.data.user?lr.data.user.id:uid;}
   }
-  if(!uid){showMsg("Erreur creation");return;}
+  if(!uid){showMsg("Erreur");return;}
   createProfile(uid,prenomClean,ville,tok,pseudoClean);
-  await loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean);
+  loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean); // pas de await
 }
 
 async function doLogin(){
@@ -886,56 +884,49 @@ function updateStreak(){
 }
 
 async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
-  try{
-    pseudo=pseudo||prenom;
-    S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
-    S.token=tok;
-    S.score=score||0;
+  // ENTRER DANS L'APP IMMÉDIATEMENT
+  pseudo=pseudo||prenom;
+  S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
+  S.token=tok;
+  S.score=score||0;
+  var ao=document.getElementById("ao");
+  if(ao){ao.classList.add("h");ao.style.display="none";}
+  initApp();
+
+  // TOUT LE RESTE EN ARRIÈRE-PLAN (ne bloque pas l'affichage)
+  setTimeout(function(){
     try{localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,pseudo:pseudo,ville:ville,score:score||0,token:tok,day:todayStr(),lang:S.lang}));}catch(e){}
-    // Streak
+    // Streak + XP
     try{
       var streak=updateStreak();
-      var s=getStreak();
-      if(s.last===todayStr()&&streak>=1){
-        var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
-        if(!localStorage.getItem(bonusKey)){
-          addXP(10);
-          localStorage.setItem(bonusKey,"1");
-          setTimeout(function(){
-            var b=document.createElement("div");
-            b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:10px 20px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3);text-align:center";
-            b.innerHTML="🔥 "+streak+(S.lang==="en"?" day(s) in a row!":" jour(s) d'affilée !")+"<br><small>+10 XP</small>";
-            document.body.appendChild(b);
-            setTimeout(function(){if(b.parentNode)b.remove();},3000);
-          },1500);
+      var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
+      if(!localStorage.getItem(bonusKey)){
+        addXP(10);
+        localStorage.setItem(bonusKey,"1");
+        if(streak>1){
+          var b=document.createElement("div");
+          b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:10px 20px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3);text-align:center";
+          b.innerHTML="🔥 "+streak+(S.lang==="en"?" days in a row!":" jours d'affilée !")+"<br><small>+10 XP</small>";
+          document.body.appendChild(b);
+          setTimeout(function(){if(b.parentNode)b.remove();},3000);
         }
       }
     }catch(e){}
-    // Masquer l'écran auth
-    var ao=document.getElementById("ao");
-    if(ao)ao.classList.add("h");
-    // Lancer l'app
-    initApp();
-    // OneSignal : demander permission après 3s
-    setTimeout(function(){
-      try{
-        if(window.OneSignalDeferred){
-          window.OneSignalDeferred.push(async function(os){
-            try{
-              var perm=os.Notifications.permission;
-              if(!perm)await os.Slidedown.promptPush();
-              await os.login(uid);
-            }catch(e){}
-          });
-        }
-      }catch(e){}
-    },3000);
-  }catch(e){
-    console.log("loginSuccess error:",e);
-    // En cas d'erreur, forcer l'affichage de l'app quand même
-    try{var ao=document.getElementById("ao");if(ao)ao.classList.add("h");}catch(e2){}
-    try{initApp();}catch(e2){}
-  }
+  },100);
+
+  // OneSignal après 4s pour ne pas ralentir le démarrage
+  setTimeout(function(){
+    try{
+      if(window.OneSignalDeferred){
+        window.OneSignalDeferred.push(async function(os){
+          try{
+            if(!os.Notifications.permission)await os.Slidedown.promptPush();
+            await os.login(uid);
+          }catch(e){}
+        });
+      }
+    }catch(e){}
+  },4000);
 }
 
 // ── PUSH NOTIFICATIONS ─────────────────────────────────────
