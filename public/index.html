@@ -2100,12 +2100,24 @@ async function fetchCls(period){
   var month=today.slice(0,7);
   var filter=period==="day"?"day=eq."+today:period==="week"?"week=eq."+week:"month=eq."+month;
   try{
-    var r=await fetch(SB_URL+"/rest/v1/cev_scores?"+filter+"&order=score.desc&limit=50",{
+    // Récupérer les scores avec jointure sur cev_profiles pour avoir le vrai pseudo
+    var r=await fetch(SB_URL+"/rest/v1/cev_scores?"+filter+"&order=score.desc&limit=50&select=*,cev_profiles(pseudo,ville)",{
       headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"}
     });
     var text=await r.text();
-    console.log("fetchCls",r.status,text.slice(0,200));
-    return{ok:r.ok,data:JSON.parse(text)||[]};
+    var raw=JSON.parse(text)||[];
+    // Normaliser : utiliser le pseudo de cev_profiles en priorité
+    var data=raw.map(function(row){
+      var prof=row.cev_profiles||{};
+      return{
+        user_id:row.user_id,
+        pseudo:prof.pseudo||row.prenom||"Joueur",
+        prenom:prof.pseudo||row.prenom||"Joueur", // alias pour compatibilité
+        ville:prof.ville||row.ville||"",
+        score:row.score
+      };
+    });
+    return{ok:r.ok,data:data};
   }catch(e){return{ok:false,data:[]};}
 }
 
