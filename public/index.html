@@ -497,7 +497,54 @@ html,body{
 var SB_URL="https://xqcaiqnivxhgcxuxgqqy.supabase.co";
 var SB_KEY="sb_publishable_oFgJJ9PzpEVSVzImdyfh5g_4N5NY99B";
 async function sbFetch(path,opts){var url=SB_URL+"/rest/v1/"+path;var authTok=(opts&&opts.headers&&opts.headers["Authorization"])?opts.headers["Authorization"]:"Bearer "+SB_KEY;var headers={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":authTok,"Prefer":"return=representation"};if(opts&&opts.headers)Object.assign(headers,opts.headers);var res=await fetch(url,Object.assign({headers:headers},opts||{}));var text=await res.text();try{return{ok:res.ok,status:res.status,data:text?JSON.parse(text):null};}catch(e){return{ok:res.ok,status:res.status,data:text};}}
-async function sbAuth(action,body){var url=SB_URL+"/auth/v1/"+action;var res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});var d=await res.json();return{ok:res.ok,data:d};}
+async function sbAuth(action,body){
+  var url=SB_URL+"/auth/v1/"+action;
+  var res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","apikey":SB_KEY},body:JSON.stringify(body)});
+  var d=await res.json();
+  // Sauvegarder le refresh_token si disponible
+  if(d.refresh_token){try{localStorage.setItem("cev_refresh_token",d.refresh_token);}catch(e){}}
+  return{ok:res.ok,data:d};
+}
+
+async function refreshToken(){
+  try{
+    var rt=localStorage.getItem("cev_refresh_token");
+    if(!rt)return false;
+    var res=await fetch(SB_URL+"/auth/v1/token?grant_type=refresh_token",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SB_KEY},
+      body:JSON.stringify({refresh_token:rt})
+    });
+    if(!res.ok)return false;
+    var d=await res.json();
+    if(d.access_token){
+      S.token=d.access_token;
+      if(d.refresh_token)localStorage.setItem("cev_refresh_token",d.refresh_token);
+      try{
+        var sess=JSON.parse(localStorage.getItem("cev_session")||"{}");
+        sess.token=d.access_token;
+        localStorage.setItem("cev_session",JSON.stringify(sess));
+      }catch(e){}
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+
+// Wrapper pour les appels Supabase avec auto-refresh
+async function sbFetchAuth(url,opts){
+  var headers=Object.assign({"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},opts.headers||{});
+  var res=await fetch(url,Object.assign({},opts,{headers:headers}));
+  if(res.status===401||res.status===403){
+    // Essayer de rafraîchir le token
+    var refreshed=await refreshToken();
+    if(refreshed){
+      headers["Authorization"]="Bearer "+S.token;
+      res=await fetch(url,Object.assign({},opts,{headers:headers}));
+    }
+  }
+  return res;
+}
 // ── STATE ─────────────────────────────────────────────────
 var S={user:null,token:null,lang:"fr",mode:"reg",opt:"perm",score:0,qc:0,lvl:"easy",qi:0,qsc:0,qans:false,tq:{easy:[],medium:[],hard:[],mixed:[]}};
 function todayStr(){return new Date().toISOString().slice(0,10);}
@@ -2342,7 +2389,7 @@ function initApp(){
   var hvr=document.getElementById("hvr");if(hvr)hvr.textContent=v.ref+" · Louis Segond 1910";
   var hdt=document.getElementById("hdt");if(hdt)hdt.textContent=verseDefi;
   if(S.user){
-    var hw=document.getElementById("home-welcome");if(hw)hw.textContent=t("welcome")+" "+S.user.prenom+" 👋";
+    var hw=document.getElementById("home-welcome");if(hw)hw.textContent=t("welcome")+" "+(S.user.pseudo||S.user.prenom)+" 👋";
     var ts=document.getElementById("ts");if(ts)ts.textContent="🏆 "+S.score+" pts";
     var ss=document.getElementById("ss");if(ss)ss.textContent=S.score;
     // Streak
@@ -2353,6 +2400,23 @@ function initApp(){
   updateXPBar();
   showFeedbackBtn();
   initExitPrompt();
+  fetchAllTimeRank();
+}
+
+async function fetchAllTimeRank(){
+  if(!S.user)return;
+  try{
+    // Compter combien d'utilisateurs ont un score_total supérieur au nôtre
+    var myXP=getXP();
+    var r=await fetch(SB_URL+"/rest/v1/cev_profiles?score_total=gt."+myXP+"&select=id",{
+      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+    });
+    if(!r.ok)return;
+    var data=await r.json();
+    var rank=(data?data.length:0)+1;
+    var el=document.getElementById("srank");
+    if(el)el.textContent="#"+rank;
+  }catch(e){}
   if(window.speechSynthesis){
     window.speechSynthesis.getVoices();
     window.speechSynthesis.addEventListener("voiceschanged",function(){});
@@ -2591,9 +2655,9 @@ async function createRoom(){
       return{q:q.q,qe:q.qe||q.q,opts:q.opts,ans:q.ans,diff:q.diff||"easy"};
     });
     var pseudo=S.user.pseudo||S.user.prenom;
-    var r=await fetch(SB_URL+"/rest/v1/cev_rooms",{
+    var r=await sbFetchAuth(SB_URL+"/rest/v1/cev_rooms",{
       method:"POST",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"return=representation"},
+      headers:{"Prefer":"return=representation"},
       body:JSON.stringify({code:code,host_id:S.user.id,host_name:pseudo,status:"waiting",max_players:DEFI_SIZE,current_q:0,total_q:10,q_data:qData})
     });
     if(!r.ok){
@@ -2688,9 +2752,9 @@ async function joinRoom(){
 }
 
 async function joinRoomAsPlayer(roomId){
-  await fetch(SB_URL+"/rest/v1/cev_room_players?on_conflict=room_id,user_id",{
+  await sbFetchAuth(SB_URL+"/rest/v1/cev_room_players?on_conflict=room_id,user_id",{
     method:"POST",
-    headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
+    headers:{"Prefer":"resolution=ignore-duplicates"},
     body:JSON.stringify({room_id:roomId,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true})
   });
 }
@@ -3547,7 +3611,22 @@ function renderBibleLinear(c,en){
 
   var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
     +'<button onclick="setBibleMode(\'\');renderBible()" style="background:none;border:none;font-size:20px;cursor:pointer">&#8592;</button>'
-    +'<span style="font-weight:800;font-size:13px;color:#1F2937">&#x1F4D6; '+testamentLabel+'</span></div>'
+    +'<span style="font-weight:800;font-size:13px;color:#1F2937">&#x1F4D6; '+testamentLabel+'</span></div>';
+
+  // Indicateur de retard
+  var daysSinceStart=Math.max(0,Math.floor((new Date()-new Date(data.startDay*86400000+(new Date(new Date().getFullYear(),0,1).getTime())))/86400000));
+  var expectedDone=Math.min(total,(daysSinceStart+1)*chapsPerDay);
+  var diff=done-expectedDone;
+  var statusColor,statusBg,statusBorder,statusLabel;
+  if(diff>=0){statusColor="#059669";statusBg="#ECFDF5";statusBorder="#059669";statusLabel=en?"✅ On track or ahead":"✅ À jour ou en avance";}
+  else if(diff>=-5){statusColor="#D97706";statusBg="#FFFBEB";statusBorder="#F59E0B";statusLabel=en?"⚠️ Slightly behind":"⚠️ Légèrement en retard";}
+  else{statusColor="#DC2626";statusBg="#FEF2F2";statusBorder="#EF4444";statusLabel=en?"🔴 Behind — Keep going!":"🔴 En retard — Courage !";}
+
+  h+='<div style="background:'+statusBg+';border:2px solid '+statusBorder+';border-radius:13px;padding:10px 13px;margin-bottom:9px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center">'
+    +'<span style="font-weight:800;font-size:11px;color:'+statusColor+'">'+statusLabel+'</span>'
+    +'<span style="font-size:9px;color:'+statusColor+'">'+done+'/'+expectedDone+' '+(en?"expected":"attendus")+'</span>'
+    +'</div></div>'
     +'<div style="background:#fff;border-radius:14px;padding:13px;margin-bottom:9px;box-shadow:var(--sh)">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
     +'<span style="font-weight:800;font-size:12px;color:'+testamentColor+'">'+pct+'% '+(en?"completed":"complété")+'</span>'
