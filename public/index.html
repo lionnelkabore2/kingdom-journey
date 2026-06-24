@@ -2691,7 +2691,9 @@ async function createRoom(){
     }
     incDefiUsed();
     DEFI.room=room;DEFI.qs=qData;
+    // Attendre que le joueur soit bien inséré avant d'afficher
     await joinRoomAsPlayer(room.id);
+    await loadPlayers(); // Charger les joueurs immédiatement
     saveDefiSession();
     subscribeRoom(room.id);
     notifyAllPlayers(code,DEFI_SIZE);
@@ -2748,6 +2750,7 @@ async function joinRoom(){
   DEFI.room=room;
   DEFI.qs=room.q_data||[];
   await joinRoomAsPlayer(room.id);
+  await loadPlayers(); // S'assurer que le joueur apparaît immédiatement
   saveDefiSession();
   subscribeRoom(room.id);
   // Aller directement au bon écran selon le statut
@@ -2771,10 +2774,41 @@ async function joinRoomAsPlayer(roomId){
 }
 
 async function loadPlayers(){
-  var r=await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&order=score.desc",{
-    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-  });
-  DEFI.players=await r.json()||[];
+  if(!DEFI.room)return;
+  try{
+    var r=await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&online=eq.true&order=score.desc",{
+      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+(S.token||SB_KEY)}
+    });
+    var players=await r.json()||[];
+    // Toujours s'assurer que le joueur courant est dans la liste
+    if(S.user){
+      var meInList=players.find(function(p){return p.user_id===S.user.id;});
+      if(!meInList){
+        players.unshift({
+          user_id:S.user.id,
+          prenom:S.user.pseudo||S.user.prenom,
+          pseudo:S.user.pseudo||S.user.prenom,
+          score:0,
+          ready:false,
+          online:true
+        });
+        // Réessayer l'insertion en arrière-plan
+        joinRoomAsPlayer(DEFI.room.id);
+      }
+    }
+    DEFI.players=players;
+  }catch(e){
+    console.log("loadPlayers err",e);
+    // En cas d'erreur réseau, au moins mettre le joueur courant
+    if(S.user&&(!DEFI.players||DEFI.players.length===0)){
+      DEFI.players=[{
+        user_id:S.user.id,
+        prenom:S.user.pseudo||S.user.prenom,
+        pseudo:S.user.pseudo||S.user.prenom,
+        score:0,ready:false,online:true
+      }];
+    }
+  }
 }
 
 function subscribeRoom(roomId){
