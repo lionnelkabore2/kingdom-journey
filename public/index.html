@@ -939,6 +939,8 @@ async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
   var ao=document.getElementById("ao");
   if(ao){ao.classList.add("h");ao.style.display="none";}
   initApp();
+  // Sauvegarder le score immédiatement pour apparaître dans le classement
+  setTimeout(function(){saveScore();},500);
 
   // TOUT LE RESTE EN ARRIÈRE-PLAN (ne bloque pas l'affichage)
   setTimeout(function(){
@@ -2070,20 +2072,25 @@ async function saveScore(){
     var wn=Math.ceil(((d-soy)/86400000+soy.getDay()+1)/7);
     var week=today.slice(0,4)+"-W"+String(wn).padStart(2,"0");
     var month=today.slice(0,7);
-    var body={user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
-    // Toujours faire un UPSERT propre
-    var r=await fetch(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
+    var pseudo=S.user.pseudo||S.user.prenom;
+    var body={user_id:S.user.id,prenom:pseudo,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
+    // UPSERT avec auto-refresh du token
+    var r=await sbFetchAuth(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
       method:"POST",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=merge-duplicates"},
+      headers:{"Prefer":"resolution=merge-duplicates"},
       body:JSON.stringify(body)
     });
-    // Si le POST échoue, forcer un PATCH
     if(!r.ok){
-      await fetch(SB_URL+"/rest/v1/cev_scores?user_id=eq."+S.user.id+"&day=eq."+today,{
+      var errText=await r.text();
+      console.log("saveScore POST err:",r.status,errText);
+      // Fallback PATCH
+      await sbFetchAuth(SB_URL+"/rest/v1/cev_scores?user_id=eq."+S.user.id+"&day=eq."+today,{
         method:"PATCH",
-        headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-        body:JSON.stringify({score:S.score,week:week,month:month})
+        headers:{},
+        body:JSON.stringify({score:S.score,prenom:pseudo,week:week,month:month})
       });
+    } else {
+      console.log("saveScore OK - score:",S.score,"pseudo:",pseudo);
     }
   }catch(e){console.log("saveScore err:",e);}
 }
@@ -2100,13 +2107,17 @@ async function fetchCls(period){
   var month=today.slice(0,7);
   var filter=period==="day"?"day=eq."+today:period==="week"?"week=eq."+week:"month=eq."+month;
   try{
+    var tok=S.token||SB_KEY;
     var r=await fetch(SB_URL+"/rest/v1/cev_scores?"+filter+"&order=score.desc&limit=50&select=user_id,prenom,ville,score",{
-      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+tok}
     });
-    if(!r.ok)return{ok:false,data:[]};
+    if(!r.ok){
+      console.log("fetchCls err:",r.status, await r.text());
+      return{ok:false,data:[]};
+    }
     var data=await r.json();
     return{ok:true,data:data||[]};
-  }catch(e){return{ok:false,data:[]};}
+  }catch(e){console.log("fetchCls exc:",e);return{ok:false,data:[]};}
 }
 
 async function renderCls(){
