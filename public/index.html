@@ -855,28 +855,33 @@ async function doRegEmail(){
   var pw=document.getElementById("inp-pw").value;
   var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";
   if(!prenom||!contact||!pw){showMsg(t("err_fields"));return;}
-  showMsg("⏳ "+(S.lang==="en"?"Creating account...":"Création du compte..."),true);
+  showMsg("⏳...",true);
   var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
-  var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
-  if(!r.ok){
-    var errMsg=r.data.error_description||r.data.msg||r.data.message||"Erreur";
-    if(errMsg.toLowerCase().includes("already"))errMsg=S.lang==="en"?"Email already used. Try logging in.":"Email déjà utilisé. Connecte-toi.";
-    showMsg(errMsg);return;
-  }
-  var tok=r.data.access_token;
-  var uid=r.data.user?r.data.user.id:null;
-  if(!tok||!uid){
-    // Fallback login silencieux
-    var lr=await sbAuth("token?grant_type=password",{email:email,password:pw});
-    if(!lr.ok){showMsg(S.lang==="en"?"Account created! Please log in.":"Compte créé ! Connecte-toi.");return;}
-    tok=lr.data.access_token;uid=lr.data.user?lr.data.user.id:null;
-  }
-  if(!uid){showMsg("Erreur");return;}
-  // Entrer dans l'app immédiatement, créer le profil en arrière-plan
-  createProfile(uid,prenomClean,ville,tok,pseudoClean);
-  loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean); // pas de await
+  try{
+    var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
+    if(!r.ok){
+      var errMsg=r.data.error_description||r.data.msg||r.data.message||"Erreur";
+      if(errMsg.toLowerCase().includes("already"))errMsg=S.lang==="en"?"Email already used. Log in instead.":"Email déjà utilisé. Connecte-toi.";
+      showMsg(errMsg);return;
+    }
+    var tok=r.data.access_token;
+    var uid=r.data.user?r.data.user.id:null;
+    if(!uid){showMsg("Erreur uid");return;}
+    if(!tok){
+      // Pas de session auto — login silencieux en background
+      sbAuth("token?grant_type=password",{email:email,password:pw}).then(function(lr){
+        if(lr.ok&&lr.data.access_token){
+          S.token=lr.data.access_token;
+          try{localStorage.setItem("cev_refresh_token",lr.data.refresh_token||"");}catch(e){}
+          try{var s=JSON.parse(localStorage.getItem("cev_session")||"{}");s.token=S.token;localStorage.setItem("cev_session",JSON.stringify(s));}catch(e){}
+        }
+      });
+    }
+    loginNow(uid,prenomClean,ville,0,tok||"",pseudoClean);
+    setTimeout(function(){createProfile(uid,prenomClean,ville,S.token||tok||"",pseudoClean);},300);
+  }catch(e){showMsg("Erreur: "+e.message);}
 }
 
 async function doRegName(){
@@ -884,70 +889,123 @@ async function doRegName(){
   var pseudo=document.getElementById("inp-pseudo2").value.trim()||prenom;
   var ville=document.getElementById("inp-ville2").value.trim()||"Non precisee";
   if(!prenom){showMsg(t("err_fields"));return;}
-  showMsg("⏳ "+(S.lang==="en"?"Creating account...":"Création du compte..."),true);
+  showMsg("⏳...",true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
-  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";
-  var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";
-  var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
-  if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
-  var tok=r.data.access_token;
-  var uid=r.data.user?r.data.user.id:null;
-  if(!tok&&uid){
-    var lr=await sbAuth("token?grant_type=password",{email:fakeEmail,password:fakePw});
-    if(lr.ok){tok=lr.data.access_token;uid=lr.data.user?lr.data.user.id:uid;}
-  }
-  if(!uid){showMsg("Erreur");return;}
-  createProfile(uid,prenomClean,ville,tok,pseudoClean);
-  loginSuccess(uid,prenomClean,ville,0,tok,pseudoClean); // pas de await
+  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"").slice(0,15)+"_"+Date.now()+"@cev.app";
+  var fakePw="CEV_"+Math.random().toString(36).slice(2,8)+"!Aa1";
+  try{
+    var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
+    if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
+    var tok=r.data.access_token;
+    var uid=r.data.user?r.data.user.id:null;
+    if(!uid){showMsg("Erreur");return;}
+    loginNow(uid,prenomClean,ville,0,tok||"",pseudoClean);
+    setTimeout(function(){createProfile(uid,prenomClean,ville,S.token||tok||"",pseudoClean);},300);
+  }catch(e){showMsg("Erreur: "+e.message);}
 }
 
 async function doLogin(){
   var contact=document.getElementById("inp-email-login").value.trim();
   var pw=document.getElementById("inp-pw-login").value;
   if(!contact||!pw){showMsg(t("err_fields"));return;}
-  showMsg("⏳ "+(S.lang==="en"?"Connecting...":"Connexion en cours..."),true);
+  showMsg("⏳...",true);
   var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
-  var r=await sbAuth("token?grant_type=password",{email:email,password:pw});
-  if(!r.ok){showMsg(t("err_login"));return;}
-  var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
-  if(!uid){showMsg(t("err_login"));return;}
-  var prof=await getProfile(uid,tok);
-  if(!prof){createProfile(uid,contact.split("@")[0],"Non precisee",tok);prof={prenom:contact.split("@")[0],pseudo:contact.split("@")[0],ville:"Non precisee",score_total:0};}
-  await loginSuccess(uid,prof.prenom,prof.ville,prof.score_total||0,tok,prof.pseudo);
+  try{
+    var r=await sbAuth("token?grant_type=password",{email:email,password:pw});
+    if(!r.ok){showMsg(t("err_login"));return;}
+    var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
+    if(!uid){showMsg(t("err_login"));return;}
+    // Utiliser user_metadata du JWT — AUCUN appel réseau supplémentaire
+    var meta=r.data.user.user_metadata||{};
+    var prenomClean=meta.prenom||contact.split("@")[0].slice(0,20);
+    var pseudoClean=meta.pseudo||prenomClean;
+    var ville=meta.ville||"Non precisee";
+    loginNow(uid,prenomClean,ville,0,tok,pseudoClean);
+    // Charger le vrai score en arrière-plan
+    setTimeout(async function(){
+      try{var prof=await getProfile(uid,tok);if(prof){S.score=prof.score_total||0;updateXPBar();}}catch(e){}
+    },600);
+  }catch(e){showMsg("Erreur: "+e.message);}
 }
 
 async function doLoginQuick(){
   var prenom=document.getElementById("inp-prenom-login").value.trim();
   var ville=document.getElementById("inp-ville-login").value.trim()||"Non precisee";
   if(!prenom){showMsg(t("err_fields"));return;}
-  showMsg("⏳ "+(S.lang==="en"?"Connecting...":"Connexion en cours..."),true);
+  showMsg("⏳...",true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
-  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";
-  var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";
-  var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,ville:ville}}});
-  if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
-  var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
-  if(!uid){showMsg("Erreur");return;}
-  createProfile(uid,prenomClean,ville,tok); // non-bloquant
-  await loginSuccess(uid,prenomClean,ville,0,tok);
+  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"").slice(0,15)+"_"+Date.now()+"@cev.app";
+  var fakePw="CEV_"+Math.random().toString(36).slice(2,8)+"!Aa1";
+  try{
+    var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,ville:ville}}});
+    if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
+    var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
+    if(!uid){showMsg("Erreur");return;}
+    loginNow(uid,prenomClean,ville,0,tok||"",prenomClean);
+    setTimeout(function(){createProfile(uid,prenomClean,ville,S.token||tok||"",prenomClean);},300);
+  }catch(e){showMsg("Erreur: "+e.message);}
 }
+
 async function createProfile(uid,prenom,ville,tok,pseudo){
   pseudo=pseudo||prenom;
   try{
-    await sbFetch("cev_profiles?on_conflict=id",{
-      method:"POST",
-      headers:{"Authorization":"Bearer "+tok,"Prefer":"resolution=ignore-duplicates"},
-      body:JSON.stringify({id:uid,prenom:prenom,pseudo:pseudo,ville:ville,score_total:0})
-    });
+    await sbPost("cev_profiles?on_conflict=id",{id:uid,prenom:prenom,pseudo:pseudo,ville:ville,score_total:0},"resolution=ignore-duplicates");
   }catch(e){console.log("createProfile err",e);}
 }
 
 async function getProfile(uid,tok){
-  var r=await sbFetch("cev_profiles?id=eq."+uid+"&select=*",{headers:{"Authorization":"Bearer "+tok}});
+  var r=await sbGet("cev_profiles?id=eq."+uid+"&select=*");
   return r.data&&r.data[0]?r.data[0]:null;
 }
 
+// Entrée INSTANTANÉE dans l'app — zéro appel réseau bloquant
+function loginNow(uid,prenom,ville,score,tok,pseudo){
+  pseudo=pseudo||prenom;
+  S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
+  S.token=tok;
+  S.score=score||0;
+  // Sauvegarder refresh token si disponible
+  var ao=document.getElementById("ao");
+  if(ao){ao.classList.add("h");ao.style.display="none";}
+  try{localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,pseudo:pseudo,ville:ville,score:score||0,token:tok,day:todayStr(),lang:S.lang}));}catch(e){}
+  initApp();
+  // Arrière-plan : streak + score
+  setTimeout(function(){
+    try{
+      var streak=updateStreak();
+      var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
+      if(!localStorage.getItem(bonusKey)){
+        addXP(10);localStorage.setItem(bonusKey,"1");
+        if(streak>1){
+          var b=document.createElement("div");
+          b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:10px 20px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3);text-align:center";
+          b.innerHTML="🔥 "+streak+(S.lang==="en"?" days in a row!":" jours d'affilée !")+"<br><small>+10 XP</small>";
+          document.body.appendChild(b);
+          setTimeout(function(){if(b.parentNode)b.remove();},3000);
+        }
+      }
+    }catch(e){}
+    saveScore();
+  },400);
+  // OneSignal après 5s
+  setTimeout(function(){
+    try{
+      if(window.OneSignalDeferred){
+        window.OneSignalDeferred.push(async function(os){
+          try{if(!os.Notifications.permission)await os.Slidedown.promptPush();await os.login(uid);}catch(e){}
+        });
+      }
+    }catch(e){}
+  },5000);
+}
+
+// Alias pour compatibilité avec tout le code existant
+function loginSuccess(uid,prenom,ville,score,tok,pseudo){
+  loginNow(uid,prenom,ville,score,tok,pseudo);
+}
+
+// ── STREAK (jours consécutifs) ─────────────────────────────
 // ── STREAK (jours consécutifs) ─────────────────────────────
 function getStreakKey(){return"cev_streak_"+(S.user?S.user.id:"");}
 function getStreak(){
@@ -967,53 +1025,6 @@ function updateStreak(){
   return newCount;
 }
 
-async function loginSuccess(uid,prenom,ville,score,tok,pseudo){
-  // ENTRER DANS L'APP IMMÉDIATEMENT
-  pseudo=pseudo||prenom;
-  S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
-  S.token=tok;
-  S.score=score||0;
-  var ao=document.getElementById("ao");
-  if(ao){ao.classList.add("h");ao.style.display="none";}
-  initApp();
-  // Sauvegarder le score immédiatement pour apparaître dans le classement
-  setTimeout(function(){saveScore();},500);
-
-  // TOUT LE RESTE EN ARRIÈRE-PLAN (ne bloque pas l'affichage)
-  setTimeout(function(){
-    try{localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,pseudo:pseudo,ville:ville,score:score||0,token:tok,day:todayStr(),lang:S.lang}));}catch(e){}
-    // Streak + XP
-    try{
-      var streak=updateStreak();
-      var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
-      if(!localStorage.getItem(bonusKey)){
-        addXP(10);
-        localStorage.setItem(bonusKey,"1");
-        if(streak>1){
-          var b=document.createElement("div");
-          b.style.cssText="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D97706,#F59E0B);color:#fff;padding:10px 20px;border-radius:20px;font-weight:800;font-size:12px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,.3);text-align:center";
-          b.innerHTML="🔥 "+streak+(S.lang==="en"?" days in a row!":" jours d'affilée !")+"<br><small>+10 XP</small>";
-          document.body.appendChild(b);
-          setTimeout(function(){if(b.parentNode)b.remove();},3000);
-        }
-      }
-    }catch(e){}
-  },100);
-
-  // OneSignal après 4s pour ne pas ralentir le démarrage
-  setTimeout(function(){
-    try{
-      if(window.OneSignalDeferred){
-        window.OneSignalDeferred.push(async function(os){
-          try{
-            if(!os.Notifications.permission)await os.Slidedown.promptPush();
-            await os.login(uid);
-          }catch(e){}
-        });
-      }
-    }catch(e){}
-  },4000);
-}
 
 // ── PUSH NOTIFICATIONS ─────────────────────────────────────
 var FEEDBACK_URL="https://docs.google.com/forms/d/e/1FAIpQLSeiD9j1OPuAjFqXz7lpTAJEAk81vVLfPL9zYOyEsI-yaD6npQ/viewform";
@@ -2428,6 +2439,12 @@ function initApp(){
   showFeedbackBtn();
   initExitPrompt();
   fetchAllTimeRank();
+  // Rafraîchir le token toutes les 30 minutes en arrière-plan
+  if(!window._tokenRefreshInterval){
+    window._tokenRefreshInterval=setInterval(function(){
+      if(S.user&&S.token)refreshToken();
+    },30*60*1000);
+  }
 }
 
 async function fetchAllTimeRank(){
@@ -2569,6 +2586,8 @@ function showTutorial(){
 function renderDefi(){
   var c=document.getElementById("defi-cont");
   if(!c){console.log("defi-cont not found");return;}
+  // Rafraîchir le token proactivement à l'ouverture du challenge
+  if(S.user&&S.token){refreshToken();}
   // Afficher le tutoriel la première fois
   if(!hasSeen()&&!DEFI.room){
     showTutorial();
