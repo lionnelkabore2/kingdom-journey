@@ -531,12 +531,18 @@ async function refreshToken(){
   return false;
 }
 
-// Wrapper pour les appels Supabase avec auto-refresh
+// Appel authentifié avec auto-refresh
 async function sbFetchAuth(url,opts){
-  var headers=Object.assign({"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},opts.headers||{});
+  // S'assurer qu'on a un token valide
+  if(!S.token){
+    await refreshToken();
+  }
+  var tok=S.token||SB_KEY;
+  var headers={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+tok};
+  if(opts.headers)Object.assign(headers,opts.headers);
   var res=await fetch(url,Object.assign({},opts,{headers:headers}));
-  if(res.status===401||res.status===403){
-    // Essayer de rafraîchir le token
+  // Auto-refresh si 401/403
+  if((res.status===401||res.status===403)&&S.token){
     var refreshed=await refreshToken();
     if(refreshed){
       headers["Authorization"]="Bearer "+S.token;
@@ -544,6 +550,37 @@ async function sbFetchAuth(url,opts){
     }
   }
   return res;
+}
+
+// Lecture publique sans auth (pour classement, salles)
+async function sbGet(path){
+  var r=await fetch(SB_URL+"/rest/v1/"+path,{
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+  });
+  if(!r.ok)return{ok:false,data:[]};
+  try{var d=await r.json();return{ok:true,data:d||[]};}
+  catch(e){return{ok:false,data:[]};}
+}
+
+// Écriture authentifiée
+async function sbPost(path,body,prefer){
+  var r=await sbFetchAuth(SB_URL+"/rest/v1/"+path,{
+    method:"POST",
+    headers:{"Prefer":prefer||"return=representation"},
+    body:JSON.stringify(body)
+  });
+  if(!r.ok){var t2=await r.text();console.log("sbPost err",r.status,t2);return{ok:false,data:null,status:r.status};}
+  try{var d=await r.json();return{ok:true,data:d};}
+  catch(e){return{ok:true,data:null};}
+}
+
+async function sbPatch(path,body){
+  var r=await sbFetchAuth(SB_URL+"/rest/v1/"+path,{
+    method:"PATCH",
+    headers:{"Prefer":"return=minimal"},
+    body:JSON.stringify(body)
+  });
+  return{ok:r.ok,status:r.status};
 }
 // ── STATE ─────────────────────────────────────────────────
 var S={user:null,token:null,lang:"fr",mode:"reg",opt:"perm",score:0,qc:0,lvl:"easy",qi:0,qsc:0,qans:false,tq:{easy:[],medium:[],hard:[],mixed:[]}};
@@ -2064,7 +2101,7 @@ function addScore(pts){
 }
 
 async function saveScore(){
-  if(!S.user||!S.token)return;
+  if(!S.user)return;
   try{
     var today=todayStr();
     var d=new Date();
@@ -2074,24 +2111,12 @@ async function saveScore(){
     var month=today.slice(0,7);
     var pseudo=S.user.pseudo||S.user.prenom;
     var body={user_id:S.user.id,prenom:pseudo,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
-    // UPSERT avec auto-refresh du token
-    var r=await sbFetchAuth(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
-      method:"POST",
-      headers:{"Prefer":"resolution=merge-duplicates"},
-      body:JSON.stringify(body)
-    });
+    var r=await sbPost("cev_scores?on_conflict=user_id,day",body,"resolution=merge-duplicates");
     if(!r.ok){
-      var errText=await r.text();
-      console.log("saveScore POST err:",r.status,errText);
       // Fallback PATCH
-      await sbFetchAuth(SB_URL+"/rest/v1/cev_scores?user_id=eq."+S.user.id+"&day=eq."+today,{
-        method:"PATCH",
-        headers:{},
-        body:JSON.stringify({score:S.score,prenom:pseudo,week:week,month:month})
-      });
-    } else {
-      console.log("saveScore OK - score:",S.score,"pseudo:",pseudo);
+      await sbPatch("cev_scores?user_id=eq."+S.user.id+"&day=eq."+today,{score:S.score,prenom:pseudo});
     }
+    console.log("saveScore",r.ok?"OK":"PATCH fallback","score:",S.score);
   }catch(e){console.log("saveScore err:",e);}
 }
 
@@ -2106,18 +2131,7 @@ async function fetchCls(period){
   var week=today.slice(0,4)+"-W"+String(wn).padStart(2,"0");
   var month=today.slice(0,7);
   var filter=period==="day"?"day=eq."+today:period==="week"?"week=eq."+week:"month=eq."+month;
-  try{
-    var tok=S.token||SB_KEY;
-    var r=await fetch(SB_URL+"/rest/v1/cev_scores?"+filter+"&order=score.desc&limit=50&select=user_id,prenom,ville,score",{
-      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+tok}
-    });
-    if(!r.ok){
-      console.log("fetchCls err:",r.status, await r.text());
-      return{ok:false,data:[]};
-    }
-    var data=await r.json();
-    return{ok:true,data:data||[]};
-  }catch(e){console.log("fetchCls exc:",e);return{ok:false,data:[]};}
+  return await sbGet("cev_scores?"+filter+"&order=score.desc&limit=50&select=user_id,prenom,ville,score");
 }
 
 async function renderCls(){
@@ -2666,24 +2680,21 @@ async function createRoom(){
       return{q:q.q,qe:q.qe||q.q,opts:q.opts,ans:q.ans,diff:q.diff||"easy"};
     });
     var pseudo=S.user.pseudo||S.user.prenom;
-    var r=await sbFetchAuth(SB_URL+"/rest/v1/cev_rooms",{
-      method:"POST",
-      headers:{"Prefer":"return=representation"},
-      body:JSON.stringify({code:code,host_id:S.user.id,host_name:pseudo,status:"waiting",max_players:DEFI_SIZE,current_q:0,total_q:10,q_data:qData})
-    });
+    var r=await sbPost("cev_rooms",{code:code,host_id:S.user.id,host_name:pseudo,status:"waiting",max_players:DEFI_SIZE,current_q:0,total_q:10,q_data:qData});
     if(!r.ok){
-      var errText=await r.text();
-      console.log("createRoom error:",r.status,errText);
+      console.log("createRoom error:",r.status);
       if(r.status===401||r.status===403){
-        alert(S.lang==="fr"?"Session expirée. Déconnecte-toi et reconnecte-toi.":"Session expired. Please log out and log in again.");
-      } else {
-        alert((S.lang==="fr"?"Erreur ":"Error ")+r.status+". "+(S.lang==="fr"?"Réessaie dans quelques secondes.":"Try again in a few seconds."));
+        // Tenter refresh et réessayer
+        await refreshToken();
+        r=await sbPost("cev_rooms",{code:code,host_id:S.user.id,host_name:pseudo,status:"waiting",max_players:DEFI_SIZE,current_q:0,total_q:10,q_data:qData});
       }
-      if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
-      return;
+      if(!r.ok){
+        alert((S.lang==="fr"?"Erreur création salle ":"Room error ")+r.status);
+        if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
+        return;
+      }
     }
-    var data=await r.json();
-    var room=Array.isArray(data)?data[0]:data;
+    var room=Array.isArray(r.data)?r.data[0]:r.data;
     if(!room||!room.id){
       alert(S.lang==="fr"?"Erreur création salle. Réessaie.":"Room creation failed. Try again.");
       if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
@@ -2721,26 +2732,17 @@ async function joinRoom(){
     return;
   }
 
-  // Chercher la salle (waiting OU playing — pas finished)
-  var r=await fetch(SB_URL+"/rest/v1/cev_rooms?code=eq."+codeVal+"&status=neq.finished&order=created_at.desc&limit=1",{
-    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-  });
-  var data=null;
-  try{data=await r.json();}catch(e){}
-  if(!data||!data[0]){
+  // Chercher la salle
+  var rRoom=await sbGet("cev_rooms?code=eq."+codeVal+"&status=neq.finished&order=created_at.desc&limit=1");
+  if(!rRoom.ok||!rRoom.data||!rRoom.data[0]){
     alert(S.lang==="fr"?"Code introuvable ou challenge terminé":"Code not found or challenge ended");
     return;
   }
-  var room=data[0];
+  var room=rRoom.data[0];
 
   // Vérifier si la salle est pleine
-  var playersR=await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+room.id+"&online=eq.true",{
-    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-  });
-  var players=[];
-  try{players=await playersR.json()||[];}catch(e){}
-  
-  // Vérifier si ce joueur est déjà dans la salle
+  var rPlayers=await sbGet("cev_room_players?room_id=eq."+room.id+"&online=eq.true");
+  var players=rPlayers.ok?rPlayers.data:[];
   var alreadyIn=players.find(function(p){return p.user_id===S.user.id;});
   if(!alreadyIn&&players.length>=room.max_players){
     alert(S.lang==="fr"?"La salle est complète !":"The room is full!");
@@ -2766,47 +2768,32 @@ async function joinRoom(){
 }
 
 async function joinRoomAsPlayer(roomId){
-  await sbFetchAuth(SB_URL+"/rest/v1/cev_room_players?on_conflict=room_id,user_id",{
-    method:"POST",
-    headers:{"Prefer":"resolution=ignore-duplicates"},
-    body:JSON.stringify({room_id:roomId,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true})
-  });
+  var r=await sbPost(
+    "cev_room_players?on_conflict=room_id,user_id",
+    {room_id:roomId,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true},
+    "resolution=merge-duplicates"
+  );
+  console.log("joinRoomAsPlayer",r.ok?"OK":"FAILED",r.status||"");
 }
 
 async function loadPlayers(){
   if(!DEFI.room)return;
   try{
-    var r=await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&online=eq.true&order=score.desc",{
-      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+(S.token||SB_KEY)}
-    });
-    var players=await r.json()||[];
+    var r=await sbGet("cev_room_players?room_id=eq."+DEFI.room.id+"&online=eq.true&order=score.desc");
+    var players=r.ok?r.data:[];
     // Toujours s'assurer que le joueur courant est dans la liste
     if(S.user){
       var meInList=players.find(function(p){return p.user_id===S.user.id;});
       if(!meInList){
-        players.unshift({
-          user_id:S.user.id,
-          prenom:S.user.pseudo||S.user.prenom,
-          pseudo:S.user.pseudo||S.user.prenom,
-          score:0,
-          ready:false,
-          online:true
-        });
-        // Réessayer l'insertion en arrière-plan
-        joinRoomAsPlayer(DEFI.room.id);
+        players.unshift({user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,pseudo:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true});
+        joinRoomAsPlayer(DEFI.room.id); // Réessayer en arrière-plan
       }
     }
     DEFI.players=players;
   }catch(e){
     console.log("loadPlayers err",e);
-    // En cas d'erreur réseau, au moins mettre le joueur courant
     if(S.user&&(!DEFI.players||DEFI.players.length===0)){
-      DEFI.players=[{
-        user_id:S.user.id,
-        prenom:S.user.pseudo||S.user.prenom,
-        pseudo:S.user.pseudo||S.user.prenom,
-        score:0,ready:false,online:true
-      }];
+      DEFI.players=[{user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,pseudo:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true}];
     }
   }
 }
@@ -3786,7 +3773,7 @@ function renderBible(){
 }
 </script>
 <script>
-window.onload=function(){
+window.onload=async function(){
   // Écouter les messages du Service Worker
   if(navigator.serviceWorker){
     navigator.serviceWorker.addEventListener("message",function(e){
@@ -3805,12 +3792,17 @@ window.onload=function(){
     var sess=localStorage.getItem("cev_session");
     if(sess){
       var d=JSON.parse(sess);
-      var today=todayStr();
       if(d.uid&&d.token){
         S.user={id:d.uid,prenom:d.prenom,pseudo:d.pseudo||d.prenom,ville:d.ville};
         S.token=d.token;
-        S.score=d.day===today?(d.score||0):0;
+        S.score=d.score||0;
         if(d.lang)S.lang=d.lang;
+        // Tenter refresh token immédiatement au démarrage
+        var refreshed=await refreshToken();
+        if(!refreshed){
+          // Token invalide mais on reste connecté avec l'ancien
+          console.log("Token refresh failed, using cached token");
+        }
         var ob=document.getElementById("onboarding");
         if(ob)ob.style.display="none";
         initApp();
