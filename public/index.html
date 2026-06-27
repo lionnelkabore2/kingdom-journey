@@ -696,37 +696,42 @@ function showOnboarding(onDone){
 
 function chooseLang(lang){
   setLang(lang,null);
-  // Highlight le bouton sélectionné
   var isFr=(lang==="fr");
   var btnFr=document.getElementById("lang-btn-fr");
   var btnEn=document.getElementById("lang-btn-en");
   if(btnFr){btnFr.style.borderColor=isFr?"#7C3AED":"#E5E7EB";btnFr.style.background=isFr?"linear-gradient(135deg,#EDE9FE,#DDD6FE)":"#F9FAFB";}
   if(btnEn){btnEn.style.borderColor=isFr?"#E5E7EB":"#7C3AED";btnEn.style.background=isFr?"#F9FAFB":"linear-gradient(135deg,#EDE9FE,#DDD6FE)";}
 
+  // Sécurité : si rien ne se passe en 2s, forcer l'affichage
+  var safetyTimer=setTimeout(function(){
+    goStep("step-auth-choice");
+    updateAuthChoiceLabels();
+  },2000);
+
   setTimeout(function(){
     try{
       if(!obHasSeen()){
-        // Masquer #ao, afficher l'onboarding par-dessus
         var ao=document.getElementById("ao");
         if(ao)ao.style.display="none";
         showOnboarding(function(){
-          // Onboarding terminé → réafficher #ao sur l'étape choix
+          clearTimeout(safetyTimer);
           var ao2=document.getElementById("ao");
           if(ao2)ao2.style.display="flex";
           goStep("step-auth-choice");
           updateAuthChoiceLabels();
         });
       } else {
+        clearTimeout(safetyTimer);
         goStep("step-auth-choice");
         updateAuthChoiceLabels();
       }
     }catch(e){
-      // En cas d'erreur, aller directement au choix
+      clearTimeout(safetyTimer);
       console.log("chooseLang err:",e);
       goStep("step-auth-choice");
       updateAuthChoiceLabels();
     }
-  },400);
+  },300);
 }
 
 function updateAuthChoiceLabels(){
