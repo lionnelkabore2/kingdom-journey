@@ -906,7 +906,7 @@ async function doLogin(){
   var contact=document.getElementById("inp-email-login").value.trim();
   var pw=document.getElementById("inp-pw-login").value;
   if(!contact||!pw){showMsg(t("err_fields"));return;}
-  showMsg("⏳ Connexion en cours...",true);
+  showMsg("⏳ "+(S.lang==="en"?"Connecting...":"Connexion en cours..."),true);
   var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
   var r=await sbAuth("token?grant_type=password",{email:email,password:pw});
   if(!r.ok){showMsg(t("err_login"));return;}
@@ -921,7 +921,7 @@ async function doLoginQuick(){
   var prenom=document.getElementById("inp-prenom-login").value.trim();
   var ville=document.getElementById("inp-ville-login").value.trim()||"Non precisee";
   if(!prenom){showMsg(t("err_fields"));return;}
-  showMsg("⏳ Connexion en cours...",true);
+  showMsg("⏳ "+(S.lang==="en"?"Connecting...":"Connexion en cours..."),true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"")+"_"+Date.now()+"@cev.app";
   var fakePw="CEV_"+Math.random().toString(36).slice(2)+"!Aa1";
@@ -1095,6 +1095,8 @@ function showFeedbackSuggestion(){
   // Auto-disparaître après 8 secondes
   setTimeout(function(){if(div.parentNode)div.remove();},8000);
 }
+
+var OS_APP_ID="d2f59331-4855-48b6-9c39-e236ebe11ce0";
 
 async function notifyAllPlayers(roomCode,maxPlayers){
   try{
@@ -3774,6 +3776,10 @@ function renderBible(){
 </script>
 <script>
 window.onload=async function(){
+  // Enregistrer le Service Worker uniquement sur le vrai domaine
+  if('serviceWorker' in navigator && location.hostname !== 'www.claudeusercontent.com'){
+    navigator.serviceWorker.register('/sw.js').catch(function(e){console.log('SW err',e);});
+  }
   // Écouter les messages du Service Worker
   if(navigator.serviceWorker){
     navigator.serviceWorker.addEventListener("message",function(e){
