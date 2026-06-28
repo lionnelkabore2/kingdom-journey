@@ -2793,155 +2793,186 @@ async function joinRoom(){
   }
 }
 
+// ─── ÉTAT LOCAL DU CHALLENGE ───────────────────────────────
+// On maintient une copie locale des joueurs pour ne jamais
+// afficher une liste vide même si le réseau est lent
+
 async function joinRoomAsPlayer(roomId){
   var r=await sbPost(
     "cev_room_players?on_conflict=room_id,user_id",
     {room_id:roomId,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true},
     "resolution=merge-duplicates"
   );
-  console.log("joinRoomAsPlayer",r.ok?"OK":"FAILED",r.status||"");
+  if(!r.ok)console.log("joinRoomAsPlayer FAILED",r.status);
+  return r.ok;
 }
 
 async function loadPlayers(){
   if(!DEFI.room)return;
   try{
     var r=await sbGet("cev_room_players?room_id=eq."+DEFI.room.id+"&online=eq.true&order=score.desc");
-    var players=r.ok?r.data:[];
-    // Toujours s'assurer que le joueur courant est dans la liste
-    if(S.user){
-      var meInList=players.find(function(p){return p.user_id===S.user.id;});
-      if(!meInList){
-        players.unshift({user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,pseudo:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true});
-        joinRoomAsPlayer(DEFI.room.id); // Réessayer en arrière-plan
-      }
+    if(!r.ok)return;
+    var fetched=r.data||[];
+    // Toujours s'assurer que MOI j'apparais dans la liste
+    var meInList=fetched.find(function(p){return p.user_id===S.user.id;});
+    if(!meInList){
+      // Je ne suis pas encore dans la BDD - m'ajouter localement ET réessayer l'insertion
+      fetched.unshift({
+        user_id:S.user.id,
+        prenom:S.user.pseudo||S.user.prenom,
+        pseudo:S.user.pseudo||S.user.prenom,
+        score:DEFI.myScore||0,
+        ready:false,
+        online:true
+      });
+      // Réinsertion silencieuse
+      joinRoomAsPlayer(DEFI.room.id);
+    } else {
+      // Mettre à jour mon score local depuis la BDD
+      DEFI.myScore=meInList.score||0;
     }
-    DEFI.players=players;
+    DEFI.players=fetched;
   }catch(e){
     console.log("loadPlayers err",e);
-    if(S.user&&(!DEFI.players||DEFI.players.length===0)){
-      DEFI.players=[{user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,pseudo:S.user.pseudo||S.user.prenom,score:0,ready:false,online:true}];
-    }
+    // Garder la liste précédente si erreur réseau
   }
 }
 
 function subscribeRoom(roomId){
-  // Fermer l'ancien WebSocket si existant
   if(DEFI.ws){try{DEFI.ws.close();}catch(e){}}
   if(DEFI.pollInterval){clearInterval(DEFI.pollInterval);}
 
   var lastStatus=DEFI.room?DEFI.room.status:"waiting";
   var lastQ=DEFI.room?DEFI.room.current_q:-1;
+  var lastPlayerCount=DEFI.players?DEFI.players.length:0;
+  var isRendering=false; // Éviter les rendus simultanés
 
   DEFI.pollInterval=setInterval(async function(){
-    if(!DEFI.room)return;
+    if(!DEFI.room||isRendering)return;
     try{
-      // Vérifier la salle
-      var r=await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+roomId,{
-        headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-      });
-      var data=await r.json();
-      if(!data||!data[0])return;
-      var room=data[0];
-
-      // Mettre à jour les questions
+      // 1. Récupérer l'état de la salle
+      var rRoom=await sbGet("cev_rooms?id=eq."+roomId+"&limit=1");
+      if(!rRoom.ok||!rRoom.data||!rRoom.data[0])return;
+      var room=rRoom.data[0];
+      DEFI.room=room;
       if(room.q_data)DEFI.qs=room.q_data;
 
-      // Détecter les changements
+      // 2. Récupérer les joueurs
+      var rPlayers=await sbGet("cev_room_players?room_id=eq."+roomId+"&online=eq.true&order=score.desc");
+      if(rPlayers.ok&&rPlayers.data){
+        var fetched=rPlayers.data;
+        // Toujours inclure le joueur courant
+        var meInList=fetched.find(function(p){return p.user_id===S.user.id;});
+        if(!meInList){
+          fetched.unshift({
+            user_id:S.user.id,
+            prenom:S.user.pseudo||S.user.prenom,
+            pseudo:S.user.pseudo||S.user.prenom,
+            score:DEFI.myScore||0,
+            ready:false,
+            online:true
+          });
+          joinRoomAsPlayer(roomId); // Réinsertion silencieuse
+        }
+        DEFI.players=fetched;
+      }
+
+      var currentPlayerCount=DEFI.players?DEFI.players.length:0;
+
+      // 3. Réagir aux changements d'état
       if(room.status==="finished"&&lastStatus!=="finished"){
+        // Challenge terminé
         lastStatus=room.status;
-        DEFI.room=room;
+        isRendering=true;
         if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
-        clearDefiSession();
         clearInterval(DEFI.pollInterval);
+        clearDefiSession();
         renderDefiResults();
+        isRendering=false;
 
       } else if(room.status==="playing"&&(lastStatus!=="playing"||room.current_q!==lastQ)){
-        var wasWaiting=(lastStatus!=="playing");
+        // Nouvelle question ou début du jeu
         lastStatus=room.status;
         lastQ=room.current_q;
-        DEFI.room=room;
+        isRendering=true;
         if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
         DEFI.answered=false;
         DEFI_NEXT_PENDING=false;
         saveDefiSession();
-        // Charger les joueurs
-        await loadPlayers();
         renderDefiPlaying();
         startQuestionTimer();
+        isRendering=false;
 
-      } else if(room.status==="waiting"){
-        DEFI.room=room;
-        await loadPlayers();
-        renderDefiWaiting();
-      }
-
-      // Mettre à jour les scores des joueurs si en jeu
-      if(room.status==="playing"){
-        await loadPlayers();
+      } else if(room.status==="playing"){
+        // Même question — juste mettre à jour les scores sans recréer le HTML
         for(var j=0;j<DEFI.players.length;j++){
-          var pct=Math.min(100,Math.round((DEFI.players[j].score/DEFI_WIN_SCORE)*100));
-          var bar=document.getElementById("score-bar-"+DEFI.players[j].user_id);
-          var lbl=document.getElementById("score-lbl-"+DEFI.players[j].user_id);
+          var p=DEFI.players[j];
+          var pct=Math.min(100,Math.round((p.score/DEFI_WIN_SCORE)*100));
+          var bar=document.getElementById("score-bar-"+p.user_id);
+          var lbl=document.getElementById("score-lbl-"+p.user_id);
           if(bar)bar.style.width=pct+"%";
-          if(lbl)lbl.textContent=DEFI.players[j].score+"/"+DEFI_WIN_SCORE;
+          if(lbl)lbl.textContent=p.score+"/"+DEFI_WIN_SCORE;
         }
-        // Vérifier si tout le monde a répondu
         if(!DEFI_NEXT_PENDING&&DEFI.answered){
           checkAllAnswered(room.current_q||0);
+        }
+
+      } else if(room.status==="waiting"){
+        // Salle d'attente — mettre à jour seulement si le nombre de joueurs change
+        lastStatus=room.status;
+        if(currentPlayerCount!==lastPlayerCount){
+          lastPlayerCount=currentPlayerCount;
+          renderDefiWaiting(); // Recréer le HTML uniquement si liste changée
+        } else {
+          // Juste mettre à jour le compteur sans recréer tout le HTML
+          var counter=document.querySelector(".defi-player-count");
+          if(counter)counter.textContent=currentPlayerCount+"/"+room.max_players;
         }
       }
 
     }catch(e){console.log("poll err",e);}
-  },2000); // Toutes les 2 secondes
+  },2000);
 }
 
 function renderDefiWaiting(){
   var c=document.getElementById("defi-cont");if(!c)return;
-  loadPlayers().then(function(){
-    var isHost=DEFI.room&&DEFI.room.host_id===S.user.id;
-    var lbl=S.lang==="fr";
-    var h='<div class="defi-card" style="text-align:center">';
-    h+='<p style="font-size:11px;color:var(--gray);margin-bottom:4px">'+(lbl?"Code de la salle":"Room code")+'</p>';
-    h+='<div class="defi-code">'+DEFI.room.code+'</div>';
-    h+='<p style="font-size:10px;color:var(--gray)">'+(lbl?"Partage ce code avec tes amis !":"Share this code with your friends!")+'</p>';
-    h+='<button style="margin-top:6px;background:linear-gradient(135deg,var(--green),#059669);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:12px;cursor:pointer" onclick="shareDefiCode(\''+DEFI.room.code+'\')">📲 '+(lbl?"Partager le code":"Share code")+'</button>';
-    h+='</div>';
-    h+='<div class="defi-card">';
-    h+='<h3 style="font-size:12px;font-weight:800;color:var(--purple);margin-bottom:10px">👥 '+(lbl?"Joueurs":"Players")+' ('+DEFI.players.length+'/'+DEFI.room.max_players+')</h3>';
-    for(var i=0;i<DEFI.players.length;i++){
-      var p=DEFI.players[i];
-      var isMe=p.user_id===S.user.id;
-      var isH=p.user_id===DEFI.room.host_id;
-      h+='<div class="defi-player'+(isH?" host":"")+(p.ready?" ready":"")+'"><div class="defi-av">'+(p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase()+'</div>';
-      h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+(isH?' <span style="font-size:9px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;font-weight:700">HOST</span>':'');
-      h+='</div><span style="font-size:14px">'+(p.ready?"✅":"⏳")+'</span></div>';
+  var isHost=DEFI.room&&DEFI.room.host_id===S.user.id;
+  var lbl=S.lang==="fr";
+  var h='<div class="defi-card" style="text-align:center">';
+  h+='<p style="font-size:11px;color:var(--gray);margin-bottom:4px">'+(lbl?"Code de la salle":"Room code")+'</p>';
+  h+='<div class="defi-code">'+DEFI.room.code+'</div>';
+  h+='<p style="font-size:10px;color:var(--gray)">'+(lbl?"Partage ce code avec tes amis !":"Share this code with your friends!")+'</p>';
+  h+='<button style="margin-top:6px;background:linear-gradient(135deg,var(--green),#059669);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:Nunito,sans-serif;font-weight:700;font-size:12px;cursor:pointer" onclick="shareDefiCode(\''+DEFI.room.code+'\')">📲 '+(lbl?"Partager le code":"Share code")+'</button>';
+  h+='</div>';
+  h+='<div class="defi-card">';
+  h+='<h3 style="font-size:12px;font-weight:800;color:var(--purple);margin-bottom:10px">👥 '+(lbl?"Joueurs":"Players")+' (<span class="defi-player-count">'+DEFI.players.length+'</span>/'+DEFI.room.max_players+')</h3>';
+  for(var i=0;i<DEFI.players.length;i++){
+    var p=DEFI.players[i];
+    var isMe=p.user_id===S.user.id;
+    var isH=p.user_id===DEFI.room.host_id;
+    h+='<div class="defi-player'+(isH?" host":"")+(p.ready?" ready":"")+'"><div class="defi-av">'+(p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase()+'</div>';
+    h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+(isH?' <span style="font-size:9px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;font-weight:700">HOST</span>':'');
+    h+='</div><span style="font-size:14px">'+(p.ready?"✅":"⏳")+'</span></div>';
+  }
+  if(DEFI.players.length<2){
+    h+='<div style="text-align:center;padding:12px;color:var(--gray);font-size:11px">⏳ '+(lbl?"En attente de joueurs...":"Waiting for players...")+'</div>';
+  }
+  h+='</div>';
+  if(isHost){
+    var canStart=DEFI.players.length>=2;
+    if(canStart){
+      h+='<button class="defi-btn" style="margin-top:8px" onclick="startDefi()">🚀 '+(lbl?"Démarrer le défi !":"Start the challenge!")+'</button>';
+    } else {
+      h+='<button class="defi-btn" style="margin-top:8px;opacity:.5;cursor:not-allowed">⏳ '+(lbl?"Attends au moins 1 autre joueur...":"Wait for at least 1 more player...")+'</button>';
     }
-    if(DEFI.players.length<2){
-      h+='<div style="text-align:center;padding:12px;color:var(--gray);font-size:11px">⏳ '+(lbl?"En attente de joueurs...":"Waiting for players...")+'</div>';
-    }
-    h+='</div>';
-    // Bouton démarrer (hôte seulement, dès qu'il y a 2+ joueurs)
-    if(isHost){
-      var canStart=DEFI.players.length>=2;
-      var startLabel="🚀 "+(lbl?"Démarrer le défi !":"Start the challenge!");
-      if(canStart){
-        h+='<button class="defi-btn" style="margin-top:8px" onclick="startDefi()">'+startLabel+'</button>';
-      } else {
-        h+='<button class="defi-btn" style="margin-top:8px;opacity:.5;cursor:not-allowed">⏳ '+(lbl?"Attends au moins 1 autre joueur...":"Wait for at least 1 more player...")+'</button>';
-      }
-    }
-    h+='<button class="defi-btn-out" onclick="leaveRoom()">🚪 '+(lbl?"Quitter la salle":"Leave room")+'</button>';
-    c.innerHTML=h;
-  });
+  }
+  h+='<button class="defi-btn-out" onclick="leaveRoom()">🚪 '+(lbl?"Quitter la salle":"Leave room")+'</button>';
+  c.innerHTML=h;
 }
 
 async function setReady(){
   if(!DEFI.room)return;
-  await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
-    method:"PATCH",
-    headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-    body:JSON.stringify({ready:true})
-  });
+  await sbPatch("cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{ready:true});
 }
 
 function saveDefiSession(){
@@ -2984,32 +3015,25 @@ async function rejoinRoom(){
 }
 
 async function startDefi(){
-  if(!DEFI.room){console.log("startDefi: no room");return;}
-  console.log("startDefi: patching room",DEFI.room.id);
-  // Feedback visuel immédiat
+  if(!DEFI.room){return;}
   var btn=document.querySelector(".defi-btn");
-  if(btn){btn.textContent="⏳ Démarrage...";btn.disabled=true;}
+  if(btn){btn.textContent="⏳...";btn.disabled=true;}
   try{
-    var r=await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-      method:"PATCH",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({status:"playing",current_q:0,q_start_time:new Date().toISOString()})
-    });
-    console.log("startDefi response:",r.status);
+    var r=await sbPatch("cev_rooms?id=eq."+DEFI.room.id,{status:"playing",current_q:0,q_start_time:new Date().toISOString()});
     if(r.ok){
       DEFI.room.status="playing";
       DEFI.room.current_q=0;
       DEFI.answered=false;
+      DEFI_NEXT_PENDING=false;
       saveDefiSession();
-      renderDefi();
+      renderDefiPlaying();
       startQuestionTimer();
     } else {
-      var txt=await r.text();
-      console.log("startDefi error:",txt);
-      alert("Erreur démarrage: "+r.status);
+      if(btn){btn.textContent="🚀 "+(S.lang==="fr"?"Démarrer le défi !":"Start the challenge!");btn.disabled=false;}
+      alert((S.lang==="fr"?"Erreur démarrage: ":"Start error: ")+r.status);
     }
   }catch(e){
-    console.log("startDefi exception:",e);
+    if(btn){btn.disabled=false;}
     alert("Erreur: "+e.message);
   }
 }
@@ -3094,35 +3118,23 @@ async function answerDefi(choice){
   // Sauvegarder la réponse dans Supabase
   var isFirst=false;
   try{
-    await fetch(SB_URL+"/rest/v1/cev_room_answers",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token,"Prefer":"resolution=ignore-duplicates"},
-      body:JSON.stringify({room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,q_index:qi,answer:choice,is_correct:ok})
-    });
-    // Si bonne réponse : vérifier si on est le PREMIER correct dans Supabase
+    await sbPost("cev_room_answers",{room_id:DEFI.room.id,user_id:S.user.id,prenom:S.user.pseudo||S.user.prenom,q_index:qi,answer:choice,is_correct:ok},"resolution=ignore-duplicates");
+    // Si bonne réponse : vérifier si on est le PREMIER correct
     if(ok){
-      var cr=await fetch(SB_URL+"/rest/v1/cev_room_answers?room_id=eq."+DEFI.room.id+"&q_index=eq."+qi+"&is_correct=eq.true&order=answered_at.asc&limit=1",{
-        headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-      });
-      var firsts=await cr.json();
-      isFirst=(firsts&&firsts.length>0&&firsts[0].user_id===S.user.id);
+      var cr=await sbGet("cev_room_answers?room_id=eq."+DEFI.room.id+"&q_index=eq."+qi+"&is_correct=eq.true&order=answered_at.asc&limit=1");
+      isFirst=(cr.ok&&cr.data&&cr.data.length>0&&cr.data[0].user_id===S.user.id);
     }
   }catch(e){console.log("answer save err",e);}
 
   var total=pts+(isFirst?1:0);
 
-  // Badge flottant — n'interfère PAS avec le timer
+  // Badge flottant
   var fbDiv=document.createElement("div");
   fbDiv.style.cssText="position:fixed;top:45%;left:50%;transform:translate(-50%,-50%) scale(0);background:"+(ok?"linear-gradient(135deg,#059669,#047857)":"#EF4444")+";color:#fff;padding:14px 28px;border-radius:16px;font-weight:800;font-size:18px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:transform .25s;text-align:center";
-  fbDiv.innerHTML=ok
-    ?(isFirst?"⚡ +"+total+" pts<br><span style='font-size:12px;font-weight:600'>1er bonus +1 !</span>":"✅ +"+pts+" pts")
-    :"❌ Raté";
+  fbDiv.innerHTML=ok?(isFirst?"⚡ +"+total+" pts<br><span style='font-size:12px;font-weight:600'>1er bonus +1 !</span>":"✅ +"+pts+" pts"):"❌ "+(S.lang==="fr"?"Raté":"Missed");
   document.body.appendChild(fbDiv);
   setTimeout(function(){fbDiv.style.transform="translate(-50%,-50%) scale(1)";},10);
-  setTimeout(function(){
-    fbDiv.style.transform="translate(-50%,-50%) scale(0)";
-    setTimeout(function(){if(fbDiv.parentNode)fbDiv.remove();},250);
-  },2500);
+  setTimeout(function(){fbDiv.style.transform="translate(-50%,-50%) scale(0)";setTimeout(function(){if(fbDiv.parentNode)fbDiv.remove();},250);},2500);
 
   // Mise à jour score local
   var myNewScore=0;
@@ -3131,6 +3143,7 @@ async function answerDefi(choice){
       if(DEFI.players[pi].user_id===S.user.id){
         DEFI.players[pi].score+=total;
         myNewScore=DEFI.players[pi].score;
+        DEFI.myScore=myNewScore;
         break;
       }
     }
@@ -3139,25 +3152,15 @@ async function answerDefi(choice){
     var lbl=document.getElementById("score-lbl-"+S.user.id);
     if(bar)bar.style.width=pct+"%";
     if(lbl)lbl.textContent=myNewScore+"/"+DEFI_WIN_SCORE;
-
-    fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
-      method:"PATCH",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({score:myNewScore})
-    });
-
-    if(myNewScore>=DEFI_WIN_SCORE&&DEFI.room.host_id===S.user.id){
+    // Mettre à jour le score en BDD
+    sbPatch("cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{score:myNewScore});
+    // Vérifier victoire — n'importe quel joueur peut déclarer la fin
+    if(myNewScore>=DEFI_WIN_SCORE){
       clearInterval(DEFI.countdown);DEFI.countdown=null;
-      fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-        method:"PATCH",
-        headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-        body:JSON.stringify({status:"finished"})
-      });
+      sbPatch("cev_rooms?id=eq."+DEFI.room.id,{status:"finished"});
       return;
     }
   }
-
-  // Vérifier si tout le monde a répondu
   checkAllAnswered(qi);
 }
 
@@ -3166,27 +3169,23 @@ async function answerDefi(choice){
 async function recheckRoomStatus(oldQi){
   if(!DEFI.room)return;
   try{
-    var r=await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-    });
-    var data=await r.json();
-    if(!data||!data[0])return;
-    var room=data[0];
+    var r=await sbGet("cev_rooms?id=eq."+DEFI.room.id+"&limit=1");
+    if(!r.ok||!r.data||!r.data[0])return;
+    var room=r.data[0];
     if(room.status==="finished"){
       DEFI.room=room;
+      clearInterval(DEFI.pollInterval);
       clearDefiSession();
-      renderDefi();
-      return;
-    }
-    if(room.current_q!==oldQi||room.status!=="playing"){
+      renderDefiResults();
+    } else if(room.current_q!==oldQi){
       DEFI.room=room;
       DEFI.qs=room.q_data||DEFI.qs;
       DEFI.answered=false;
+      DEFI_NEXT_PENDING=false;
       saveDefiSession();
-      renderDefi();
+      renderDefiPlaying();
       startQuestionTimer();
     } else {
-      // L'hôte n'a pas encore mis à jour, réessayer
       setTimeout(function(){recheckRoomStatus(oldQi);},1500);
     }
   }catch(e){}
@@ -3348,19 +3347,15 @@ function renderDefiResults(){
 async function leaveRoom(){
   if(DEFI.room){
     try{
-      await fetch(SB_URL+"/rest/v1/cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{
-        method:"PATCH",
-        headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-        body:JSON.stringify({online:false})
-      });
+      await sbPatch("cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{online:false});
     }catch(e){}
   }
   if(DEFI.ws)try{DEFI.ws.close();}catch(e){}
   if(DEFI.pollInterval){clearInterval(DEFI.pollInterval);DEFI.pollInterval=null;}
-  DEFI.room=null;DEFI.players=[];DEFI.answers=[];DEFI.qi=0;DEFI.answered=false;
-  if(DEFI.countdown)clearInterval(DEFI.countdown);
+  if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
+  DEFI.room=null;DEFI.players=[];DEFI.answers=[];DEFI.qi=0;DEFI.answered=false;DEFI.myScore=0;
   clearDefiSession();
-  goTo("home");
+  renderDefi();
 }
 
 function shareDefiCode(code){
