@@ -92,10 +92,9 @@ html,body{
 .fd input{width:100%;padding:10px 12px;border:2px solid #E5E7EB;border-radius:10px;font-family:Nunito,sans-serif;font-size:13px;color:var(--dark);background:#FAFAFA;transition:border .2s}
 .fd input:focus{outline:none;border-color:var(--purple);background:#fff}
 .abtn{width:100%;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:none;border-radius:11px;padding:13px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:4px;box-shadow:0 4px 15px rgba(124,58,237,.4)}
-.amsg{font-size:11px;margin-top:8px;text-align:center;padding:8px;border-radius:8px;display:none}
-.amsg.err{background:var(--redl);color:var(--red);display:block}
-.amsg.ok{background:var(--greenl);color:var(--green);display:block}
-.amsg.info{background:var(--purplel);color:var(--purple);display:block}
+.amsg{font-size:12px;margin-top:10px;text-align:center;padding:10px 12px;border-radius:10px;display:none;font-weight:700;line-height:1.5}
+.amsg.err{background:#FEE2E2;color:#DC2626;border:2px solid #FCA5A5;display:block}
+.amsg.info{background:#EDE9FE;color:#7C3AED;border:2px solid #C4B5FD;display:block}.amsg.ok{background:var(--greenl);color:var(--green);display:block}
 .aswitch{margin-top:12px;text-align:center;font-size:11px;color:rgba(255,255,255,.75)}
 .aswitch span{color:#FFF;cursor:pointer;font-weight:700;text-decoration:underline}
 /* HEADER */
@@ -597,6 +596,21 @@ function showMsg(msg,isInfo){
   if(!el)return;
   el.textContent=msg;
   el.className="amsg "+(isInfo?"info":"err");
+  el.style.display="block";
+  if(!isInfo){
+    // Faire défiler jusqu'au message d'erreur
+    el.scrollIntoView({behavior:"smooth",block:"center"});
+  }
+}
+
+function showErr(msg){
+  showMsg(msg,false);
+  // Réactiver le bouton pour que l'utilisateur puisse réessayer
+  var btn=document.getElementById("abtn");
+  if(btn){
+    btn.disabled=false;
+    btn.textContent=S.lang==="en"?"Continue →":"Continuer →";
+  }
 }
 
 function normPrenom(s){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9 _-]/g,"").trim();}
@@ -853,29 +867,69 @@ async function doAuth(){
   // Ne PAS réactiver le bouton ni showAuthForm ici — loginSuccess s'en charge
 }
 
+// Afficher une erreur ET réactiver le bouton
+function showErr(msg){
+  showMsg(msg,false);
+  var btn=document.getElementById("abtn");
+  if(btn){btn.disabled=false;btn.textContent=S.lang==="en"?"Continue →":"Continuer →";}
+}
+
+// Traduire les erreurs Supabase en messages clairs
+function translateAuthError(data,lang){
+  var en=(lang==="en");
+  var raw=data.error_description||data.msg||data.message||data.error||"";
+  var raw2=raw.toLowerCase();
+  if(raw2.includes("already registered")||raw2.includes("already been registered")||raw2.includes("duplicate"))
+    return en?"❌ This email is already registered. Please log in instead.":"❌ Cet email est déjà utilisé. Connecte-toi plutôt.";
+  if(raw2.includes("invalid email")||raw2.includes("unable to validate email"))
+    return en?"❌ Invalid email address. Please check it.":"❌ Adresse email invalide. Vérifie-la.";
+  if(raw2.includes("password")&&raw2.includes("short"))
+    return en?"❌ Password too short (minimum 6 characters).":"❌ Mot de passe trop court (minimum 6 caractères).";
+  if(raw2.includes("password")&&raw2.includes("weak"))
+    return en?"❌ Password too weak. Use letters + numbers.":"❌ Mot de passe trop faible. Utilise lettres + chiffres.";
+  if(raw2.includes("invalid login")||raw2.includes("invalid credentials")||raw2.includes("email not confirmed"))
+    return en?"❌ Wrong email or password. Check and try again.":"❌ Email ou mot de passe incorrect. Vérifie et réessaie.";
+  if(raw2.includes("user not found"))
+    return en?"❌ No account found with this email.":"❌ Aucun compte trouvé avec cet email.";
+  if(raw2.includes("rate limit")||raw2.includes("too many"))
+    return en?"❌ Too many attempts. Wait a minute and try again.":"❌ Trop de tentatives. Attends 1 minute et réessaie.";
+  if(raw2.includes("network")||raw2.includes("fetch"))
+    return en?"❌ Network error. Check your connection.":"❌ Erreur réseau. Vérifie ta connexion.";
+  if(raw.length>0)return "❌ "+raw;
+  return en?"❌ An error occurred. Please try again.":"❌ Une erreur est survenue. Réessaie.";
+}
+
 async function doRegEmail(){
-  var prenom=document.getElementById("inp-prenom").value.trim();
-  var pseudo=document.getElementById("inp-pseudo").value.trim()||prenom;
-  var contact=document.getElementById("inp-email").value.trim();
-  var pw=document.getElementById("inp-pw").value;
-  var ville=document.getElementById("inp-ville").value.trim()||"Non precisee";
-  if(!prenom||!contact||!pw){showMsg(t("err_fields"));return;}
-  showMsg("⏳...",true);
-  var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
+  var btn=document.getElementById("abtn");
+  if(btn){btn.disabled=true;btn.textContent="⏳...";}
+  var prenom=document.getElementById("inp-prenom")?document.getElementById("inp-prenom").value.trim():"";
+  var pseudo=document.getElementById("inp-pseudo")?document.getElementById("inp-pseudo").value.trim()||prenom:prenom;
+  var contact=document.getElementById("inp-email")?document.getElementById("inp-email").value.trim():"";
+  var pw=document.getElementById("inp-pw")?document.getElementById("inp-pw").value:"";
+  var ville=document.getElementById("inp-ville")?document.getElementById("inp-ville").value.trim()||"Non precisee":"Non precisee";
+
+  // Validations côté client
+  if(!prenom){showErr(S.lang==="en"?"❌ Please enter your first name.":"❌ Saisis ton prénom.");return;}
+  if(!contact){showErr(S.lang==="en"?"❌ Please enter your email or phone.":"❌ Saisis ton email ou téléphone.");return;}
+  if(!pw){showErr(S.lang==="en"?"❌ Please enter a password.":"❌ Saisis un mot de passe.");return;}
+  if(pw.length<6){showErr(S.lang==="en"?"❌ Password too short (minimum 6 characters).":"❌ Mot de passe trop court (minimum 6 caractères).");return;}
+
+  showMsg("⏳ "+(S.lang==="en"?"Creating your account...":"Création de ton compte..."),true);
+  var email=contact.includes("@")?contact.toLowerCase().trim():contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
+
   try{
     var r=await sbAuth("signup",{email:email,password:pw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
     if(!r.ok){
-      var errMsg=r.data.error_description||r.data.msg||r.data.message||"Erreur";
-      if(errMsg.toLowerCase().includes("already"))errMsg=S.lang==="en"?"Email already used. Log in instead.":"Email déjà utilisé. Connecte-toi.";
-      showMsg(errMsg);return;
+      showErr(translateAuthError(r.data,S.lang));
+      return;
     }
     var tok=r.data.access_token;
     var uid=r.data.user?r.data.user.id:null;
-    if(!uid){showMsg("Erreur uid");return;}
+    if(!uid){showErr(S.lang==="en"?"❌ Account creation failed. Try again.":"❌ Échec création compte. Réessaie.");return;}
     if(!tok){
-      // Pas de session auto — login silencieux en background
+      // Token pas encore disponible — login silencieux
       sbAuth("token?grant_type=password",{email:email,password:pw}).then(function(lr){
         if(lr.ok&&lr.data.access_token){
           S.token=lr.data.access_token;
@@ -886,70 +940,95 @@ async function doRegEmail(){
     }
     loginNow(uid,prenomClean,ville,0,tok||"",pseudoClean);
     setTimeout(function(){createProfile(uid,prenomClean,ville,S.token||tok||"",pseudoClean);},300);
-  }catch(e){showMsg("Erreur: "+e.message);}
+  }catch(e){
+    showErr(S.lang==="en"?"❌ Network error. Check your internet connection.":"❌ Erreur réseau. Vérifie ta connexion internet.");
+  }
 }
 
 async function doRegName(){
-  var prenom=document.getElementById("inp-prenom2").value.trim();
-  var pseudo=document.getElementById("inp-pseudo2").value.trim()||prenom;
-  var ville=document.getElementById("inp-ville2").value.trim()||"Non precisee";
-  if(!prenom){showMsg(t("err_fields"));return;}
-  showMsg("⏳...",true);
+  var btn=document.getElementById("abtn");
+  if(btn){btn.disabled=true;btn.textContent="⏳...";}
+  var prenom=document.getElementById("inp-prenom2")?document.getElementById("inp-prenom2").value.trim():"";
+  var pseudo=document.getElementById("inp-pseudo2")?document.getElementById("inp-pseudo2").value.trim()||prenom:prenom;
+  var ville=document.getElementById("inp-ville2")?document.getElementById("inp-ville2").value.trim()||"Non precisee":"Non precisee";
+
+  if(!prenom){showErr(S.lang==="en"?"❌ Please enter your first name.":"❌ Saisis ton prénom.");return;}
+
+  showMsg("⏳ "+(S.lang==="en"?"Creating your account...":"Création de ton compte..."),true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
   var pseudoClean=pseudo.replace(/[^a-zA-Z0-9_\- ]/g,"").trim().slice(0,20)||prenomClean;
-  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"").slice(0,15)+"_"+Date.now()+"@cev.app";
+  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"").slice(0,12)+"_"+Date.now()+"@cev.app";
   var fakePw="CEV_"+Math.random().toString(36).slice(2,8)+"!Aa1";
+
   try{
     var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,pseudo:pseudoClean,ville:ville}}});
-    if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
+    if(!r.ok){showErr(translateAuthError(r.data,S.lang));return;}
     var tok=r.data.access_token;
     var uid=r.data.user?r.data.user.id:null;
-    if(!uid){showMsg("Erreur");return;}
+    if(!uid){showErr(S.lang==="en"?"❌ Account creation failed. Try again.":"❌ Échec création compte. Réessaie.");return;}
     loginNow(uid,prenomClean,ville,0,tok||"",pseudoClean);
     setTimeout(function(){createProfile(uid,prenomClean,ville,S.token||tok||"",pseudoClean);},300);
-  }catch(e){showMsg("Erreur: "+e.message);}
+  }catch(e){
+    showErr(S.lang==="en"?"❌ Network error. Check your internet connection.":"❌ Erreur réseau. Vérifie ta connexion internet.");
+  }
 }
 
 async function doLogin(){
-  var contact=document.getElementById("inp-email-login").value.trim();
-  var pw=document.getElementById("inp-pw-login").value;
-  if(!contact||!pw){showMsg(t("err_fields"));return;}
-  showMsg("⏳...",true);
-  var email=contact.includes("@")?contact:contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
+  var btn=document.getElementById("abtn");
+  if(btn){btn.disabled=true;btn.textContent="⏳...";}
+  var contact=document.getElementById("inp-email-login")?document.getElementById("inp-email-login").value.trim():"";
+  var pw=document.getElementById("inp-pw-login")?document.getElementById("inp-pw-login").value:"";
+
+  if(!contact){showErr(S.lang==="en"?"❌ Please enter your email or phone.":"❌ Saisis ton email ou téléphone.");return;}
+  if(!pw){showErr(S.lang==="en"?"❌ Please enter your password.":"❌ Saisis ton mot de passe.");return;}
+
+  showMsg("⏳ "+(S.lang==="en"?"Logging in...":"Connexion en cours..."),true);
+  var email=contact.includes("@")?contact.toLowerCase().trim():contact.replace(/\s+/g,"").replace(/[^0-9+]/g,"")+"@cev.app";
+
   try{
     var r=await sbAuth("token?grant_type=password",{email:email,password:pw});
-    if(!r.ok){showMsg(t("err_login"));return;}
+    if(!r.ok){
+      showErr(translateAuthError(r.data,S.lang));
+      return;
+    }
     var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
-    if(!uid){showMsg(t("err_login"));return;}
-    // Utiliser user_metadata du JWT — AUCUN appel réseau supplémentaire
+    if(!uid){showErr(S.lang==="en"?"❌ Login failed. Try again.":"❌ Connexion échouée. Réessaie.");return;}
     var meta=r.data.user.user_metadata||{};
     var prenomClean=meta.prenom||contact.split("@")[0].slice(0,20);
     var pseudoClean=meta.pseudo||prenomClean;
     var ville=meta.ville||"Non precisee";
     loginNow(uid,prenomClean,ville,0,tok,pseudoClean);
-    // Charger le vrai score en arrière-plan
     setTimeout(async function(){
       try{var prof=await getProfile(uid,tok);if(prof){S.score=prof.score_total||0;updateXPBar();}}catch(e){}
     },600);
-  }catch(e){showMsg("Erreur: "+e.message);}
+  }catch(e){
+    showErr(S.lang==="en"?"❌ Network error. Check your internet connection.":"❌ Erreur réseau. Vérifie ta connexion internet.");
+  }
 }
 
 async function doLoginQuick(){
-  var prenom=document.getElementById("inp-prenom-login").value.trim();
-  var ville=document.getElementById("inp-ville-login").value.trim()||"Non precisee";
-  if(!prenom){showMsg(t("err_fields"));return;}
-  showMsg("⏳...",true);
+  var btn=document.getElementById("abtn");
+  if(btn){btn.disabled=true;btn.textContent="⏳...";}
+  var prenom=document.getElementById("inp-prenom-login")?document.getElementById("inp-prenom-login").value.trim():"";
+  var ville=document.getElementById("inp-ville-login")?document.getElementById("inp-ville-login").value.trim()||"Non precisee":"Non precisee";
+
+  if(!prenom){showErr(S.lang==="en"?"❌ Please enter your first name.":"❌ Saisis ton prénom.");return;}
+
+  showMsg("⏳ "+(S.lang==="en"?"Creating account...":"Création du compte..."),true);
   var prenomClean=normPrenom(prenom)||prenom.slice(0,20);
-  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"").slice(0,15)+"_"+Date.now()+"@cev.app";
+  var fakeEmail=prenomClean.toLowerCase().replace(/\s+/g,"").slice(0,12)+"_"+Date.now()+"@cev.app";
   var fakePw="CEV_"+Math.random().toString(36).slice(2,8)+"!Aa1";
+
   try{
     var r=await sbAuth("signup",{email:fakeEmail,password:fakePw,options:{data:{prenom:prenomClean,ville:ville}}});
-    if(!r.ok){showMsg(r.data.error_description||"Erreur");return;}
+    if(!r.ok){showErr(translateAuthError(r.data,S.lang));return;}
     var tok=r.data.access_token,uid=r.data.user?r.data.user.id:null;
-    if(!uid){showMsg("Erreur");return;}
+    if(!uid){showErr(S.lang==="en"?"❌ Failed. Try again.":"❌ Échec. Réessaie.");return;}
     loginNow(uid,prenomClean,ville,0,tok||"",prenomClean);
     setTimeout(function(){createProfile(uid,prenomClean,ville,S.token||tok||"",prenomClean);},300);
-  }catch(e){showMsg("Erreur: "+e.message);}
+  }catch(e){
+    showErr(S.lang==="en"?"❌ Network error. Check your internet connection.":"❌ Erreur réseau. Vérifie ta connexion internet.");
+  }
 }
 
 async function createProfile(uid,prenom,ville,tok,pseudo){
