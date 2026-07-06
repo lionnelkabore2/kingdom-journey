@@ -2129,13 +2129,61 @@ async function saveScore(){
     var month=today.slice(0,7);
     var pseudo=S.user.pseudo||S.user.prenom;
     var body={user_id:S.user.id,prenom:pseudo,ville:S.user.ville||"CEV",score:S.score,day:today,week:week,month:month};
-    var r=await sbPost("cev_scores?on_conflict=user_id,day",body,"resolution=merge-duplicates");
-    if(!r.ok){
-      // Fallback PATCH
-      await sbPatch("cev_scores?user_id=eq."+S.user.id+"&day=eq."+today,{score:S.score,prenom:pseudo});
+
+    // S'assurer que le token est frais avant d'écrire
+    if(!S.token)await refreshToken();
+
+    var tok=S.token||"";
+    if(!tok){console.log("saveScore: no token, skip");return;}
+
+    // UPSERT direct avec le token utilisateur
+    var r=await fetch(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "apikey":SB_KEY,
+        "Authorization":"Bearer "+tok,
+        "Prefer":"resolution=merge-duplicates"
+      },
+      body:JSON.stringify(body)
+    });
+
+    if(r.status===401||r.status===403){
+      // Token expiré → refresh et réessayer
+      var ok2=await refreshToken();
+      if(ok2){
+        r=await fetch(SB_URL+"/rest/v1/cev_scores?on_conflict=user_id,day",{
+          method:"POST",
+          headers:{
+            "Content-Type":"application/json",
+            "apikey":SB_KEY,
+            "Authorization":"Bearer "+S.token,
+            "Prefer":"resolution=merge-duplicates"
+          },
+          body:JSON.stringify(body)
+        });
+      }
     }
-    console.log("saveScore",r.ok?"OK":"PATCH fallback","score:",S.score);
-  }catch(e){console.log("saveScore err:",e);}
+
+    if(!r.ok){
+      var errText=await r.text();
+      console.log("saveScore POST err:",r.status,errText);
+      // Fallback PATCH
+      var r2=await fetch(SB_URL+"/rest/v1/cev_scores?user_id=eq."+S.user.id+"&day=eq."+today,{
+        method:"PATCH",
+        headers:{
+          "Content-Type":"application/json",
+          "apikey":SB_KEY,
+          "Authorization":"Bearer "+(S.token||tok),
+          "Prefer":"return=minimal"
+        },
+        body:JSON.stringify({score:S.score,prenom:pseudo,week:week,month:month})
+      });
+      console.log("saveScore PATCH fallback:",r2.ok?"OK":"FAIL",r2.status);
+    } else {
+      console.log("saveScore OK — score:",S.score,"pseudo:",pseudo,"day:",today);
+    }
+  }catch(e){console.log("saveScore exception:",e);}
 }
 
 // Classement : period = "day" | "week" | "month"
@@ -2998,15 +3046,11 @@ function clearDefiSession(){
 }
 
 async function rejoinRoom(){
-  // Après refresh, on recharge la salle depuis Supabase
   if(!DEFI.room||!DEFI.room.id)return false;
   try{
-    var r=await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-    });
-    var data=await r.json();
-    if(!data||!data[0])return false;
-    DEFI.room=data[0];
+    var r=await sbGet("cev_rooms?id=eq."+DEFI.room.id+"&limit=1");
+    if(!r.ok||!r.data||!r.data[0])return false;
+    DEFI.room=r.data[0];
     DEFI.qs=DEFI.room.q_data||DEFI.qs||[];
     await loadPlayers();
     subscribeRoom(DEFI.room.id);
@@ -3084,10 +3128,8 @@ function waitThenNext(qi){
 async function checkAllAnswered(qi){
   if(DEFI_NEXT_PENDING)return;
   try{
-    var r=await fetch(SB_URL+"/rest/v1/cev_room_answers?room_id=eq."+DEFI.room.id+"&q_index=eq."+qi,{
-      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
-    });
-    var answers=await r.json()||[];
+    var r=await sbGet("cev_room_answers?room_id=eq."+DEFI.room.id+"&q_index=eq."+qi);
+    var answers=r.ok?r.data||[]:[];
     var totalPlayers=DEFI.players.length||DEFI.room.max_players;
     if(answers.length>=totalPlayers){
       if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
@@ -3250,35 +3292,25 @@ function renderDefiPlaying(){
 
 async function nextDefiQuestion(){
   if(!DEFI.room||DEFI.room.host_id!==S.user.id)return;
-  // Vérifier si un joueur a atteint 20 pts
+  // Vérifier si un joueur a atteint le score gagnant
   var winner=DEFI.players.find(function(p){return p.score>=DEFI_WIN_SCORE;});
   if(winner){
-    await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-      method:"PATCH",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({status:"finished"})
-    });
+    await sbPatch("cev_rooms?id=eq."+DEFI.room.id,{status:"finished"});
     DEFI.answered=false;
     return;
   }
-  // Sinon passer à la question suivante
+  // Passer à la question suivante
   var next=(DEFI.room.current_q||0)+1;
-  // Générer plus de questions si on les a épuisées sans gagnant
   if(next>=DEFI.qs.length){
-    var moreQs=getMixedQuestions().slice(0,10);
-    var newQData=DEFI.qs.concat(moreQs.map(function(q){return{q:q.q,qe:q.qe,opts:q.opts,ans:q.ans,ref:q.ref,diff:q.diff||"easy"};}));
+    // Générer plus de questions si épuisées sans gagnant
+    var moreQs=getMixedQuestions().slice(0,10).map(function(q){
+      return{q:q.q,qe:q.qe||q.q,opts:q.opts,ans:q.ans,diff:q.diff||"easy"};
+    });
+    var newQData=DEFI.qs.concat(moreQs);
     DEFI.qs=newQData;
-    await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-      method:"PATCH",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({current_q:next,status:"playing",q_data:newQData,q_start_time:new Date().toISOString()})
-    });
+    await sbPatch("cev_rooms?id=eq."+DEFI.room.id,{current_q:next,status:"playing",q_data:newQData,q_start_time:new Date().toISOString()});
   } else {
-    await fetch(SB_URL+"/rest/v1/cev_rooms?id=eq."+DEFI.room.id,{
-      method:"PATCH",
-      headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+S.token},
-      body:JSON.stringify({current_q:next,status:"playing",q_start_time:new Date().toISOString()})
-    });
+    await sbPatch("cev_rooms?id=eq."+DEFI.room.id,{current_q:next,status:"playing",q_start_time:new Date().toISOString()});
   }
   DEFI.answered=false;
 }
