@@ -2623,6 +2623,16 @@ var DEFI_SIZE=4;
 var DEFI_MAX_PER_DAY=10;
 var DEFI_WIN_SCORE=20;
 var DEFI_TIME=15;
+var DEFI_VIEW=null; // null = ecran de choix, "room" = creer/rejoindre
+
+// ── MODE BOT (Jouer contre l'ordinateur) ──────────────────
+var BOT_LEVELS={
+  facile:{key:"facile",pct:0.45,minT:4000,maxT:10000,xp:5,emoji:"🌱"},
+  normal:{key:"normal",pct:0.65,minT:3000,maxT:8000,xp:10,emoji:"🔥"},
+  fort:{key:"fort",pct:0.85,minT:1500,maxT:5000,xp:15,emoji:"⚡"}
+};
+var BOT_NAMES=["Adversaire IA","Josué Bot","Gédéon IA","Débora IA","Élie Bot","Timothée IA"];
+var BOT={active:false,level:"normal",qs:[],qi:0,myScore:0,botScore:0,answered:false,botAnswered:false,finished:false,botName:"",countdown:null,botTimeout:null,nextTimeout:null};
 
 // CSS défi déjà dans le <style> principal
 
@@ -2705,7 +2715,7 @@ function showTutorial(){
     markSeen();
     var overlay=document.getElementById("tuto-overlay");
     if(overlay){overlay.style.opacity="0";setTimeout(function(){overlay.style.display="none";},300);}
-    renderDefiHome();
+    renderDefiChoice();
   };
 
   var overlay=document.createElement("div");
@@ -2721,14 +2731,68 @@ function renderDefi(){
   // Rafraîchir le token proactivement à l'ouverture du challenge
   if(S.user&&S.token){refreshToken();}
   // Afficher le tutoriel la première fois
-  if(!hasSeen()&&!DEFI.room){
+  if(!hasSeen()&&!DEFI.room&&!BOT.active){
     showTutorial();
     return;
   }
-  if(!DEFI.room){renderDefiHome();return;}
+  // Mode contre l'ordinateur (100% local, ne touche pas aux salles Supabase)
+  if(BOT.active){
+    if(BOT.finished){renderBotResults();}else{renderBotPlaying();}
+    return;
+  }
+  if(!DEFI.room){
+    if(DEFI_VIEW==="room"){renderDefiHome();}else{renderDefiChoice();}
+    return;
+  }
   if(DEFI.room.status==="waiting"){renderDefiWaiting();return;}
   if(DEFI.room.status==="playing"){renderDefiPlaying();return;}
   if(DEFI.room.status==="finished"){renderDefiResults();return;}
+}
+
+// ── ÉCRAN DE CHOIX : Bot vs Créer un challenge ────────────
+function renderDefiChoice(){
+  var c=document.getElementById("defi-cont");
+  if(!c)return;
+  var lbl=(S.lang==="fr");
+  var used=getDefiUsed();
+  var left=Math.max(0,DEFI_MAX_PER_DAY-used);
+  var h="";
+  h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
+  h+='<div style="font-size:40px;margin-bottom:8px">&#9876;</div>';
+  h+='<h2 style="font-family:Playfair Display,serif;font-size:20px;color:#fff;margin-bottom:5px">';
+  h+=lbl?"Mode Challenge":"Challenge Mode";
+  h+='</h2>';
+  h+='<p style="font-size:11px;color:rgba(255,255,255,.8)">';
+  h+=lbl?"Choisis comment tu veux défier !":"Choose how you want to play!";
+  h+='</p>';
+  h+='</div>';
+
+  h+='<div class="defi-card" style="text-align:center;cursor:pointer" onclick="renderBotSetup()">';
+  h+='<div style="font-size:34px;margin-bottom:6px">🤖</div>';
+  h+='<h3 style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px">'+(lbl?"Jouer contre l'ordinateur":"Play against the computer")+'</h3>';
+  h+='<p style="font-size:11px;color:var(--gray);margin-bottom:10px">'+(lbl?"Partie instantanée, aucun code requis":"Instant game, no code needed")+'</p>';
+  h+='<button class="defi-btn" onclick="event.stopPropagation();renderBotSetup()">🤖 '+(lbl?"Défier l'ordinateur":"Challenge the computer")+'</button>';
+  h+='</div>';
+
+  h+='<div class="defi-card" style="text-align:center;cursor:pointer" onclick="openDefiRoomMenu()">';
+  h+='<div style="font-size:34px;margin-bottom:6px">👥</div>';
+  h+='<h3 style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px">'+(lbl?"Créer ou rejoindre un challenge":"Create or join a challenge")+'</h3>';
+  h+='<p style="font-size:11px;color:var(--gray);margin-bottom:10px">'+(lbl?"Défie 1 à 11 amis en temps réel avec un code":"Challenge 1 to 11 friends in real time with a code")+'</p>';
+  h+='<div style="font-size:10px;color:var(--gray);font-weight:700;margin-bottom:8px">&#9876; '+left+'/'+DEFI_MAX_PER_DAY+' '+(lbl?"challenges aujourd'hui":"challenges left today")+'</div>';
+  h+='<button class="defi-btn" onclick="event.stopPropagation();openDefiRoomMenu()">👥 '+(lbl?"Créer / rejoindre":"Create / join")+'</button>';
+  h+='</div>';
+
+  c.innerHTML=h;
+}
+
+function openDefiRoomMenu(){
+  DEFI_VIEW="room";
+  renderDefiHome();
+}
+
+function backToDefiChoice(){
+  DEFI_VIEW=null;
+  renderDefiChoice();
 }
 
 function getDefiUsedKey(){return"cev_defi_"+todayStr()+"_"+(S.user?S.user.id:"");}
@@ -2743,6 +2807,8 @@ function renderDefiHome(){
   var used=getDefiUsed();
   var left=Math.max(0,DEFI_MAX_PER_DAY-used);
   var h="";
+
+  h+='<button class="defi-btn-out" style="margin-bottom:2px" onclick="backToDefiChoice()">&#8592; '+(lbl?"Retour":"Back")+'</button>';
 
   // Bannière principale
   h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
@@ -3465,6 +3531,7 @@ async function leaveRoom(){
   if(DEFI.pollInterval){clearInterval(DEFI.pollInterval);DEFI.pollInterval=null;}
   if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
   DEFI.room=null;DEFI.players=[];DEFI.answers=[];DEFI.qi=0;DEFI.answered=false;DEFI.myScore=0;
+  DEFI_VIEW=null;
   clearDefiSession();
   renderDefi();
 }
@@ -3483,6 +3550,281 @@ function shareDefiResult(){
   txt+="\n✝️ Quiz Biblique C.E.V\n👉 https://kingdom-journey.vercel.app";
   if(navigator.share)navigator.share({title:"Quiz Biblique C.E.V",text:txt});
   else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+}
+
+// ══════════════════════════════════════════════════════════
+// ── MODE "CONTRE L'ORDINATEUR" (100% local, pas de Supabase rooms) ─
+// ══════════════════════════════════════════════════════════
+
+function renderBotSetup(){
+  var c=document.getElementById("defi-cont");
+  if(!c)return;
+  var lbl=(S.lang==="fr");
+  var h="";
+  h+='<button class="defi-btn-out" style="margin-bottom:2px" onclick="backToDefiChoice()">&#8592; '+(lbl?"Retour":"Back")+'</button>';
+  h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
+  h+='<div style="font-size:40px;margin-bottom:8px">🤖</div>';
+  h+='<h2 style="font-family:Playfair Display,serif;font-size:20px;color:#fff;margin-bottom:5px">'+(lbl?"Choisis ton adversaire":"Choose your opponent")+'</h2>';
+  h+='<p style="font-size:11px;color:rgba(255,255,255,.8)">'+(lbl?"10 questions · Le plus haut score gagne":"10 questions · Highest score wins")+'</p>';
+  h+='</div>';
+
+  var levels=[
+    {key:"facile",emoji:"🌱",name:lbl?"Facile":"Easy",desc:lbl?"Adversaire lent, souvent dans l'erreur":"Slow opponent, often wrong",xp:5,color:"#059669"},
+    {key:"normal",emoji:"🔥",name:lbl?"Normal":"Normal",desc:lbl?"Rythme équilibré, bon niveau biblique":"Balanced pace, solid Bible knowledge",xp:10,color:"#F97316"},
+    {key:"fort",emoji:"⚡",name:lbl?"Fort":"Hard",desc:lbl?"Rapide et redoutablement juste":"Fast and formidably accurate",xp:15,color:"#DC2626"}
+  ];
+  for(var i=0;i<levels.length;i++){
+    var lv=levels[i];
+    h+='<div class="defi-card" style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="startBotGame(\''+lv.key+'\')">';
+    h+='<div style="font-size:30px">'+lv.emoji+'</div>';
+    h+='<div style="flex:1">';
+    h+='<div style="font-weight:800;font-size:14px;color:var(--dark)">'+lv.name+'</div>';
+    h+='<div style="font-size:11px;color:var(--gray)">'+lv.desc+'</div>';
+    h+='<div style="font-size:10px;font-weight:800;color:'+lv.color+';margin-top:3px">🏆 +'+lv.xp+' XP '+(lbl?"si victoire":"if you win")+'</div>';
+    h+='</div>';
+    h+='<div style="font-size:20px;color:var(--gray)">&#8250;</div>';
+    h+='</div>';
+  }
+  c.innerHTML=h;
+}
+
+function pickBotName(){
+  return BOT_NAMES[Math.floor(Math.random()*BOT_NAMES.length)];
+}
+
+function startBotGame(levelKey){
+  var cfg=BOT_LEVELS[levelKey]||BOT_LEVELS.normal;
+  var qs=getMixedQuestions();
+  if(!qs||qs.length===0){S.tq.mixed=getMixedQuestions();qs=S.tq.mixed;}
+  BOT.active=true;
+  BOT.level=levelKey;
+  BOT.qs=qs.slice(0,10);
+  BOT.qi=0;
+  BOT.myScore=0;
+  BOT.botScore=0;
+  BOT.answered=false;
+  BOT.botAnswered=false;
+  BOT.finished=false;
+  BOT.botName=pickBotName();
+  BOT.myCorrect=0;
+  renderBotPlaying();
+  startBotQuestionRound();
+}
+
+function startBotQuestionRound(){
+  if(BOT.countdown){clearInterval(BOT.countdown);BOT.countdown=null;}
+  if(BOT.botTimeout){clearTimeout(BOT.botTimeout);BOT.botTimeout=null;}
+  if(BOT.nextTimeout){clearTimeout(BOT.nextTimeout);BOT.nextTimeout=null;}
+  BOT.answered=false;
+  BOT.botAnswered=false;
+  var left=DEFI_TIME;
+  updateBotTimerDisplay(left);
+  BOT.countdown=setInterval(function(){
+    left--;
+    updateBotTimerDisplay(left);
+    if(left<=0){
+      clearInterval(BOT.countdown);BOT.countdown=null;
+      if(!BOT.answered)forceBotTimeoutForPlayer();
+    }
+  },1000);
+  // Programmer la réponse du bot après un délai variable selon son niveau
+  var cfg=BOT_LEVELS[BOT.level]||BOT_LEVELS.normal;
+  var delay=cfg.minT+Math.random()*(cfg.maxT-cfg.minT);
+  BOT.botTimeout=setTimeout(function(){botAnswerNow();},delay);
+}
+
+function updateBotTimerDisplay(n){
+  var el=document.getElementById("defi-timer");
+  if(!el)return;
+  el.textContent=Math.max(0,n);
+  el.className="defi-timer"+(n<=5?" urgent":"");
+}
+
+function forceBotTimeoutForPlayer(){
+  if(BOT.answered)return;
+  BOT.answered=true;
+  var q=BOT.qs[BOT.qi];
+  for(var i=0;i<q.opts.length;i++){
+    var b=document.getElementById("dob"+i);
+    if(b){b.style.pointerEvents="none";if(i===q.ans)b.classList.add("ok");}
+  }
+  maybeAdvanceBotRound();
+}
+
+function answerBot(choice){
+  if(BOT.answered)return;
+  BOT.answered=true;
+  var q=BOT.qs[BOT.qi];
+  var diff=q.diff||"easy";
+  var ok=(q.ans===choice);
+  var pts=getLvlPts(diff,ok);
+
+  for(var i=0;i<q.opts.length;i++){
+    var b=document.getElementById("dob"+i);
+    if(b){
+      b.style.pointerEvents="none";
+      if(i===q.ans)b.classList.add("ok");
+      else if(i===choice&&!ok)b.classList.add("ng");
+    }
+  }
+
+  if(ok){
+    BOT.myScore+=pts;
+    BOT.myCorrect++;
+    addXP(pts);
+    launchMiniConfetti();
+  }
+  addScore(pts);
+  saveScore();
+  updateBotScoreDisplay();
+  maybeAdvanceBotRound();
+}
+
+function botAnswerNow(){
+  if(BOT.botAnswered)return;
+  BOT.botAnswered=true;
+  var q=BOT.qs[BOT.qi];
+  var cfg=BOT_LEVELS[BOT.level]||BOT_LEVELS.normal;
+  var ok=Math.random()<cfg.pct;
+  var diff=q.diff||"easy";
+  var pts=getLvlPts(diff,ok);
+  if(ok)BOT.botScore+=pts;
+  updateBotScoreDisplay();
+  maybeAdvanceBotRound();
+}
+
+function updateBotScoreDisplay(){
+  var meLbl=document.getElementById("bot-score-me");
+  var botLbl=document.getElementById("bot-score-bot");
+  var meBar=document.getElementById("bot-bar-me");
+  var botBar=document.getElementById("bot-bar-bot");
+  var target=30; // barre visuelle indicative (pas une condition de victoire)
+  if(meLbl)meLbl.textContent=BOT.myScore;
+  if(botLbl)botLbl.textContent=BOT.botScore;
+  if(meBar)meBar.style.width=Math.min(100,Math.round((BOT.myScore/target)*100))+"%";
+  if(botBar)botBar.style.width=Math.min(100,Math.round((BOT.botScore/target)*100))+"%";
+}
+
+function maybeAdvanceBotRound(){
+  if(!BOT.answered||!BOT.botAnswered)return;
+  if(BOT.countdown){clearInterval(BOT.countdown);BOT.countdown=null;}
+  if(BOT.nextTimeout)clearTimeout(BOT.nextTimeout);
+  BOT.nextTimeout=setTimeout(function(){nextBotQuestion();},1800);
+}
+
+function nextBotQuestion(){
+  BOT.qi++;
+  if(BOT.qi>=BOT.qs.length){finishBotGame();return;}
+  renderBotPlaying();
+  startBotQuestionRound();
+}
+
+function finishBotGame(){
+  BOT.finished=true;
+  if(BOT.countdown){clearInterval(BOT.countdown);BOT.countdown=null;}
+  if(BOT.botTimeout){clearTimeout(BOT.botTimeout);BOT.botTimeout=null;}
+  if(BOT.nextTimeout){clearTimeout(BOT.nextTimeout);BOT.nextTimeout=null;}
+  var cfg=BOT_LEVELS[BOT.level]||BOT_LEVELS.normal;
+  if(BOT.myScore>BOT.botScore){
+    // Victoire : bonus XP fixe selon le niveau du bot (5/10/15)
+    addXP(cfg.xp);
+    S.score+=cfg.xp;
+    addScore(0);
+    saveScore();
+  }
+  renderBotResults();
+}
+
+function renderBotPlaying(){
+  var c=document.getElementById("defi-cont");if(!c)return;
+  var q=BOT.qs[BOT.qi];if(!q)return;
+  var lbl=S.lang==="fr";
+  var qtext=S.lang==="en"&&q.qe?q.qe:q.q;
+  var diffMap={easy:{cls:"diff-e",icon:"🌱"},medium:{cls:"diff-m",icon:"🔥"},hard:{cls:"diff-h",icon:"⚡"}};
+  var dm=diffMap[q.diff||"easy"]||diffMap.easy;
+
+  var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  h+='<span style="font-size:11px;font-weight:700;color:var(--purple)">'+(BOT.qi+1)+'/'+BOT.qs.length+'</span>';
+  h+='<div class="defi-timer" id="defi-timer">'+DEFI_TIME+'</div>';
+  h+='<span class="diff-badge '+dm.cls+'">'+dm.icon+'</span>';
+  h+='</div>';
+  h+='<div class="defi-q"><div class="qq">'+qtext+'</div><div class="olist">';
+  for(var i=0;i<q.opts.length;i++){
+    var ot=q.opts[i];if(ot.indexOf(" / ")>=0){ot=S.lang==="en"?ot.split(" / ")[1]:ot.split(" / ")[0];}
+    h+='<button class="ob" id="dob'+i+'" onclick="answerBot('+i+')"><span class="oi">'+("ABCD"[i])+'</span>'+ot+'</button>';
+  }
+  h+='</div></div>';
+
+  // Scores en direct : Moi vs Bot
+  h+='<div class="defi-card" style="margin-top:10px">';
+  h+='<h3 style="font-size:11px;font-weight:800;color:var(--purple);margin:0 0 8px 0">📊 '+(lbl?"Scores en direct":"Live scores")+'</h3>';
+
+  h+='<div style="margin-bottom:8px">';
+  h+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">';
+  h+='<div class="defi-av" style="width:26px;height:26px;font-size:10px">⭐</div>';
+  h+='<span style="font-weight:700;font-size:11px;flex:1;color:var(--dark)">'+(lbl?"Moi":"Me")+'</span>';
+  h+='<span id="bot-score-me" style="font-weight:800;font-size:11px;color:var(--purple)">'+BOT.myScore+'</span>';
+  h+='</div>';
+  h+='<div style="height:6px;background:#E9D5FF;border-radius:4px;overflow:hidden"><div id="bot-bar-me" style="height:100%;width:'+Math.min(100,Math.round((BOT.myScore/30)*100))+'%;background:linear-gradient(90deg,var(--purple),var(--blue));border-radius:4px;transition:width .4s"></div></div>';
+  h+='</div>';
+
+  h+='<div>';
+  h+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">';
+  h+='<div class="defi-av" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,#6B7280,#374151)">🤖</div>';
+  h+='<span style="font-weight:700;font-size:11px;flex:1;color:var(--dark)">'+BOT.botName+'</span>';
+  h+='<span id="bot-score-bot" style="font-weight:800;font-size:11px;color:var(--gray)">'+BOT.botScore+'</span>';
+  h+='</div>';
+  h+='<div style="height:6px;background:#E5E7EB;border-radius:4px;overflow:hidden"><div id="bot-bar-bot" style="height:100%;width:'+Math.min(100,Math.round((BOT.botScore/30)*100))+'%;background:linear-gradient(90deg,#6B7280,#374151);border-radius:4px;transition:width .4s"></div></div>';
+  h+='</div>';
+
+  h+='</div>';
+  c.innerHTML=h;
+}
+
+function renderBotResults(){
+  var c=document.getElementById("defi-cont");if(!c)return;
+  var lbl=S.lang==="fr";
+  var cfg=BOT_LEVELS[BOT.level]||BOT_LEVELS.normal;
+  var isWinner=BOT.myScore>BOT.botScore;
+  var isDraw=BOT.myScore===BOT.botScore;
+
+  var h='<div class="defi-winner">';
+  h+='<div style="font-size:50px;margin-bottom:8px">'+(isWinner?"🏆":(isDraw?"🤝":"🤖"))+'</div>';
+  h+='<div style="font-family:\'Playfair Display\',serif;font-size:24px;font-weight:900">';
+  h+=isWinner?(lbl?"🎉 Tu as gagné !":"🎉 You won!"):(isDraw?(lbl?"Match nul !":"It's a draw!"):(lbl?"L'ordinateur gagne !":"The computer wins!"));
+  h+='</div>';
+  h+='<div style="font-size:13px;opacity:.9;margin-top:4px">';
+  h+=(lbl?"Toi : ":"You: ")+BOT.myScore+' pts · '+BOT.botName+' : '+BOT.botScore+' pts';
+  h+='</div>';
+  if(isWinner){
+    h+='<div style="background:rgba(255,255,255,.25);border-radius:12px;padding:8px 16px;margin-top:10px;font-size:13px;font-weight:800">';
+    h+='⭐ +'+cfg.xp+' XP '+(lbl?"bonus (niveau "+BOT.level+") !":"bonus (level "+BOT.level+")!");
+    h+='</div>';
+  }
+  h+='</div>';
+
+  h+='<div class="defi-card">';
+  h+='<h3 style="font-size:12px;font-weight:800;color:var(--purple);margin-bottom:10px">🏅 '+(lbl?"Résultat final":"Final result")+'</h3>';
+  h+='<div class="defi-player'+(isWinner?" host":"")+'"><div class="defi-av">'+(isWinner?"🥇":"🥈")+'</div>';
+  h+='<div class="defi-pname">⭐ '+(lbl?"Moi":"Me")+(isWinner?' <span class="first-badge">👑 '+(lbl?"GAGNANT":"WINNER")+'</span>':'')+'</div>';
+  h+='<div class="defi-pscore">'+BOT.myScore+' pts</div></div>';
+  h+='<div class="defi-player'+(!isWinner&&!isDraw?" host":"")+'"><div class="defi-av">'+(!isWinner&&!isDraw?"🥇":"🥈")+'</div>';
+  h+='<div class="defi-pname">🤖 '+BOT.botName+(!isWinner&&!isDraw?' <span class="first-badge">👑 '+(lbl?"GAGNANT":"WINNER")+'</span>':'')+'</div>';
+  h+='<div class="defi-pscore">'+BOT.botScore+' pts</div></div>';
+  h+='</div>';
+
+  h+='<button class="defi-btn" onclick="startBotGame(\''+BOT.level+'\')">🔄 '+(lbl?"Rejouer contre l'ordinateur":"Play the computer again")+'</button>';
+  h+='<button class="defi-btn-out" onclick="leaveBotGame()">'+(lbl?"Retour à l'accueil":"Back to home")+'</button>';
+  c.innerHTML=h;
+  if(isWinner)launchConfetti();
+}
+
+function leaveBotGame(){
+  if(BOT.countdown){clearInterval(BOT.countdown);BOT.countdown=null;}
+  if(BOT.botTimeout){clearTimeout(BOT.botTimeout);BOT.botTimeout=null;}
+  if(BOT.nextTimeout){clearTimeout(BOT.nextTimeout);BOT.nextTimeout=null;}
+  BOT.active=false;BOT.finished=false;BOT.qs=[];BOT.qi=0;BOT.myScore=0;BOT.botScore=0;
+  renderDefiChoice();
 }
 
 // Mettre à jour goTo pour inclure defi — fusionné dans la fonction principale
