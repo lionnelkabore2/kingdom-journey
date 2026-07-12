@@ -61,6 +61,17 @@ html,body{
   overscroll-behavior:none; /* Désactive pull-to-refresh Android */
   touch-action:pan-x pan-y; /* Contrôle les gestes tactiles */
 }
+/* ── MODE ENFANT : police plus grande, boutons plus grands, plus d'espace ── */
+body.kid-mode{font-size:1.12em}
+body.kid-mode .ob{padding:16px 14px !important;font-size:15px !important;border-width:3px !important;margin-bottom:10px !important}
+body.kid-mode .qq{font-size:17px !important;line-height:1.5 !important}
+body.kid-mode .mc{padding:18px 16px !important}
+body.kid-mode .mti{font-size:15px !important}
+body.kid-mode .mde{font-size:12px !important}
+body.kid-mode .mb{font-size:12px !important;padding:8px 14px !important}
+body.kid-mode .defi-btn,body.kid-mode .defi-btn-out{padding:16px !important;font-size:15px !important}
+body.kid-mode #kid-toggle{background:#fff !important;color:var(--purple) !important;border-color:#fff !important}
+#kid-toggle.on{background:#fff;color:var(--purple);border-color:#fff}
 #app{
   height:100vh;
   height:100dvh; /* Dynamic viewport height - tient compte de la barre Android */
@@ -422,6 +433,7 @@ html,body{
       <div class="hr">
         <div style="display:flex;align-items:center;gap:7px">
           <button id="audio-toggle" onclick="toggleAudio()" style="width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;color:#fff">🔇</button>
+          <button id="kid-toggle" onclick="toggleKidMode()" title="Mode Enfant" style="width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;color:#fff">👶</button>
           <div class="sbadge" id="ts">🏆 0 pts</div>
         </div>
         <div class="ubadge" onclick="logout()">⇠ <span id="h-logout">Déconnexion</span></div>
@@ -589,6 +601,33 @@ async function sbPatch(path,body){
 // ── STATE ─────────────────────────────────────────────────
 var S={user:null,token:null,lang:"fr",mode:"reg",opt:"perm",score:0,qc:0,lvl:"easy",qi:0,qsc:0,qans:false,tq:{easy:[],medium:[],hard:[],mixed:[]}};
 function todayStr(){return new Date().toISOString().slice(0,10);}
+
+// ── MODE ENFANT ────────────────────────────────────────────
+function getKidModeKey(){return"cev_kid_mode_"+(S.user?S.user.id:"anon");}
+function getKidMode(){try{return localStorage.getItem(getKidModeKey())==="1";}catch(e){return false;}}
+function setKidMode(v){try{localStorage.setItem(getKidModeKey(),v?"1":"0");}catch(e){}}
+
+function applyKidModeUI(){
+  var on=getKidMode();
+  document.body.classList.toggle("kid-mode",on);
+  var btn=document.getElementById("kid-toggle");
+  if(btn)btn.classList.toggle("on",on);
+}
+
+function toggleKidMode(){
+  setKidMode(!getKidMode());
+  applyKidModeUI();
+  // Réinitialise le pool de questions du quiz (facile uniquement si activé)
+  S.tq.mixed=getMixedQuestions();
+  // Re-render l'écran actif pour refléter les changements (menus, niveaux bot, etc.)
+  var active=document.querySelector(".scr.active");
+  if(active){
+    var id=active.id.replace("-screen","");
+    if(id==="defi")renderDefi();
+    else if(id==="quiz")renderQuiz();
+    else if(id==="bible")renderBible();
+  }
+}
 // ── TRANSLATIONS ──────────────────────────────────────────
 var T={fr:{subtitle:"CHRIST EST VIVANT",logout:"Déconnexion",pts:"Points",quiz:"Quiz",jours:"Jours",rang:"Rang",welcome:"Bonjour",verse_sub:"Que la Parole habite en toi richement.",defi_title:"📅 Défi du jour",quiz_title:"Quiz Biblique",quiz_sub:"Questions mélangées · +1/+2/+3 pts",quiz_lbl:"Jouer →",verse_title:"Verset du Jour",verse_sub2:"LS 1910 · Méditation",verse_lbl:"Lire →",cls_title:"Classement",cls_sub:"Défie tes amis en temps réel",cls_lbl:"Voir →",tab_easy:"Débutant",tab_med:"Intermédiaire",tab_hard:"Avancé",rest:"restantes aujourd'hui",correct:"✅ Correct !",well_done:"Bien joué !",wrong:"❌ Incorrect",good_ans:"Bonne réponse :",next_q:"Question suivante →",quiz_done_title:"Quiz du jour terminé !",quiz_done_p:"Tu as utilisé tes <strong>20 questions</strong> pour aujourd'hui.<br>Reviens demain !",new_q:"🔄 Nouvelles questions demain",cls_btn:"🏆 Classement",score_lbl:"Score",cls_today:"Classement du Jour",cls_reset:"Top 10 · Se remet à zéro chaque jour à minuit",my_score:"📊 Mon score aujourd'hui",q_left:"Q restantes",no_players:"🙏 Aucun joueur encore aujourd'hui.<br>Joue au Quiz pour apparaître ici !",online:"En ligne · Temps réel",join:"Rejoindre le défi",email_pw:"Email + Mot de passe",email_pw_sub:"Compte permanent",name_only:"Juste un prénom",name_only_sub:"Connexion rapide, sans mot de passe",prenom:"Prénom",email:"Email",pw:"Mot de passe",ville:"Ville",start:"Commencer →",already:"Déjà un compte ?",signin:"Se connecter",no_account:"Pas encore de compte ?",register:"S'inscrire",err_fields:"Remplis tous les champs",err_login:"Email ou mot de passe incorrect",loading:"Chargement...",ls:"📖 Louis Segond 1910",exceptional:"Exceptionnel ! Tu maîtrises parfaitement la Parole de Dieu !",great:"Très bien ! Tu connais bien ta Bible. Continue !",good:"Bon effort ! Lis ta Bible chaque jour pour progresser !",keep:"Ne te décourage pas ! La Parole de Dieu est un trésor.",share_txt:"✝️ Quiz Biblique C.E.V\nBible Louis Segond 1910\nScore du jour :"},
 en:{subtitle:"CHRIST IS ALIVE",logout:"Logout",pts:"Points",quiz:"Quiz",jours:"Days",rang:"Rank",welcome:"Hello",verse_sub:"Let the Word dwell in you richly.",defi_title:"📅 Daily Challenge",quiz_title:"Bible Quiz",quiz_sub:"Mixed questions · +1/+2/+3 pts",quiz_lbl:"Play →",verse_title:"Verse of the Day",verse_sub2:"LS 1910 · Meditation",verse_lbl:"Read →",cls_title:"Leaderboard",cls_sub:"Challenge friends in real time",cls_lbl:"View →",tab_easy:"Beginner",tab_med:"Intermediate",tab_hard:"Advanced",rest:"remaining today",correct:"✅ Correct!",well_done:"Well done!",wrong:"❌ Wrong",good_ans:"Right answer:",next_q:"Next question →",quiz_done_title:"Today's quiz complete!",quiz_done_p:"You've used your <strong>20 questions</strong> for today.<br>Come back tomorrow!",new_q:"🔄 New questions tomorrow",cls_btn:"🏆 Leaderboard",score_lbl:"Score",cls_today:"Today's Leaderboard",cls_reset:"Top 10 · Resets at midnight every day",my_score:"📊 My score today",q_left:"Q left",no_players:"🙏 No players yet today.<br>Play the Quiz to appear here!",online:"Online · Real time",join:"Join the challenge",email_pw:"Email + Password",email_pw_sub:"Permanent account",name_only:"Just a name",name_only_sub:"Quick login, no password",prenom:"First name",email:"Email",pw:"Password",ville:"City",start:"Start →",already:"Already have an account?",signin:"Sign in",no_account:"No account yet?",register:"Sign up",err_fields:"Please fill all fields",err_login:"Wrong email or password",loading:"Loading...",ls:"📖 Louis Segond 1910",exceptional:"Exceptional! You know God's Word perfectly!",great:"Great! You know your Bible well. Keep going!",good:"Good effort! Read your Bible every day to improve!",keep:"Don't give up! God's Word is a treasure.",share_txt:"✝️ Bible Quiz C.E.V\nLouis Segond 1910\nToday's score:"}};
@@ -1977,6 +2016,10 @@ function launchConfetti(){
 function shuffle(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=b[i];b[i]=b[j];b[j]=tmp;}return b;}
 
 function getMixedQuestions(){
+  if(getKidMode()){
+    // Mode Enfant : uniquement des questions faciles
+    return shuffle(QS.easy).slice(0,20).map(function(q){return Object.assign({},q,{diff:"easy"});});
+  }
   // Mélange de 7 faciles, 7 moyennes, 6 difficiles = 20 questions
   var easy=shuffle(QS.easy).slice(0,7).map(function(q){return Object.assign({},q,{diff:"easy"});});
   var med=shuffle(QS.medium).slice(0,7).map(function(q){return Object.assign({},q,{diff:"medium"});});
@@ -2679,6 +2722,7 @@ function initApp(){
   }
   updateXPBar();
   updateShareButton();
+  applyKidModeUI();
   showFeedbackBtn();
   initExitPrompt();
   fetchAllTimeRank();
@@ -2885,13 +2929,20 @@ function renderDefiChoice(){
   h+='<button class="defi-btn" onclick="event.stopPropagation();renderBotSetup()">🤖 '+(lbl?"Défier l'ordinateur":"Challenge the computer")+'</button>';
   h+='</div>';
 
-  h+='<div class="defi-card" style="text-align:center;cursor:pointer" onclick="openDefiRoomMenu()">';
-  h+='<div style="font-size:34px;margin-bottom:6px">👥</div>';
-  h+='<h3 style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px">'+(lbl?"Créer ou rejoindre un challenge":"Create or join a challenge")+'</h3>';
-  h+='<p style="font-size:11px;color:var(--gray);margin-bottom:10px">'+(lbl?"Défie 1 à 11 amis en temps réel avec un code":"Challenge 1 to 11 friends in real time with a code")+'</p>';
-  h+='<div style="font-size:10px;color:var(--gray);font-weight:700;margin-bottom:8px">&#9876; '+left+'/'+DEFI_MAX_PER_DAY+' '+(lbl?"challenges aujourd'hui":"challenges left today")+'</div>';
-  h+='<button class="defi-btn" onclick="event.stopPropagation();openDefiRoomMenu()">👥 '+(lbl?"Créer / rejoindre":"Create / join")+'</button>';
-  h+='</div>';
+  if(getKidMode()){
+    h+='<div class="defi-card" style="text-align:center;background:var(--purplel)">';
+    h+='<div style="font-size:26px;margin-bottom:6px">👶</div>';
+    h+='<p style="font-size:11px;color:var(--purpled);font-weight:700">'+(lbl?"En Mode Enfant, seul le défi contre l'ordinateur (Facile) est disponible.":"In Kid Mode, only the computer challenge (Easy) is available.")+'</p>';
+    h+='</div>';
+  }else{
+    h+='<div class="defi-card" style="text-align:center;cursor:pointer" onclick="openDefiRoomMenu()">';
+    h+='<div style="font-size:34px;margin-bottom:6px">👥</div>';
+    h+='<h3 style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px">'+(lbl?"Créer ou rejoindre un challenge":"Create or join a challenge")+'</h3>';
+    h+='<p style="font-size:11px;color:var(--gray);margin-bottom:10px">'+(lbl?"Défie 1 à 11 amis en temps réel avec un code":"Challenge 1 to 11 friends in real time with a code")+'</p>';
+    h+='<div style="font-size:10px;color:var(--gray);font-weight:700;margin-bottom:8px">&#9876; '+left+'/'+DEFI_MAX_PER_DAY+' '+(lbl?"challenges aujourd'hui":"challenges left today")+'</div>';
+    h+='<button class="defi-btn" onclick="event.stopPropagation();openDefiRoomMenu()">👥 '+(lbl?"Créer / rejoindre":"Create / join")+'</button>';
+    h+='</div>';
+  }
 
   c.innerHTML=h;
 }
@@ -3697,11 +3748,16 @@ function renderBotSetup(){
     h+='</div>';
   }
 
+  var kid=getKidMode();
   var levels=[
     {key:"facile",emoji:"🌱",name:lbl?"Facile":"Easy",desc:lbl?"Adversaire lent, souvent dans l'erreur":"Slow opponent, often wrong",xp:5,color:"#059669"},
     {key:"normal",emoji:"🔥",name:lbl?"Normal":"Normal",desc:lbl?"Rythme équilibré, bon niveau biblique":"Balanced pace, solid Bible knowledge",xp:10,color:"#F97316"},
     {key:"fort",emoji:"⚡",name:lbl?"Fort":"Hard",desc:lbl?"Rapide et redoutablement juste":"Fast and formidably accurate",xp:15,color:"#DC2626"}
   ];
+  if(kid){
+    levels=levels.filter(function(l){return l.key==="facile";});
+    h+='<div style="text-align:center;font-size:11px;color:var(--purple);font-weight:800;margin-bottom:2px">👶 '+(lbl?"Mode Enfant : niveau Facile uniquement":"Kid Mode: Easy level only")+'</div>';
+  }
   for(var i=0;i<levels.length;i++){
     var lv=levels[i];
     var op=locked?"opacity:.45;filter:grayscale(60%);cursor:not-allowed":"cursor:pointer";
@@ -3729,6 +3785,7 @@ function startBotGame(levelKey){
     renderBotSetup();
     return;
   }
+  if(getKidMode())levelKey="facile"; // Sécurité : mode Enfant = toujours Facile, même en appel direct
   incBotUsed();
   var cfg=BOT_LEVELS[levelKey]||BOT_LEVELS.normal;
   var qs=getMixedQuestions();
