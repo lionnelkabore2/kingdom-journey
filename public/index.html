@@ -2836,6 +2836,12 @@ function getDefiUsedKey(){return"cev_defi_"+todayStr()+"_"+(S.user?S.user.id:"")
 function getDefiUsed(){try{return parseInt(localStorage.getItem(getDefiUsedKey())||"0");}catch(e){return 0;}}
 function incDefiUsed(){try{localStorage.setItem(getDefiUsedKey(),getDefiUsed()+1);}catch(e){}}
 
+// Compteur quotidien dédié au mode "contre l'ordinateur" (indépendant des challenges multijoueurs)
+var BOT_MAX_PER_DAY=10;
+function getBotUsedKey(){return"cev_bot_"+todayStr()+"_"+(S.user?S.user.id:"");}
+function getBotUsed(){try{return parseInt(localStorage.getItem(getBotUsedKey())||"0");}catch(e){return 0;}}
+function incBotUsed(){try{localStorage.setItem(getBotUsedKey(),getBotUsed()+1);}catch(e){}}
+
 
 function renderDefiHome(){
   var c=document.getElementById("defi-cont");
@@ -3597,13 +3603,25 @@ function renderBotSetup(){
   var c=document.getElementById("defi-cont");
   if(!c)return;
   var lbl=(S.lang==="fr");
+  var used=getBotUsed();
+  var left=Math.max(0,BOT_MAX_PER_DAY-used);
+  var locked=(left<=0);
   var h="";
   h+='<button class="defi-btn-out" style="margin-bottom:2px" onclick="backToDefiChoice()">&#8592; '+(lbl?"Retour":"Back")+'</button>';
   h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
   h+='<div style="font-size:40px;margin-bottom:8px">🤖</div>';
   h+='<h2 style="font-family:Playfair Display,serif;font-size:20px;color:#fff;margin-bottom:5px">'+(lbl?"Choisis ton adversaire":"Choose your opponent")+'</h2>';
   h+='<p style="font-size:11px;color:rgba(255,255,255,.8)">'+(lbl?"10 questions · Le plus haut score gagne":"10 questions · Highest score wins")+'</p>';
+  h+='<div style="font-size:11px;font-weight:800;margin-top:8px;background:rgba(255,255,255,.2);display:inline-block;padding:4px 12px;border-radius:12px">🤖 '+left+'/'+BOT_MAX_PER_DAY+' '+(lbl?"parties restantes aujourd'hui":"games left today")+'</div>';
   h+='</div>';
+
+  if(locked){
+    h+='<div class="defi-card" style="text-align:center">';
+    h+='<div style="font-size:30px;margin-bottom:6px">⏳</div>';
+    h+='<div style="font-weight:800;font-size:14px;color:var(--dark);margin-bottom:4px">'+(lbl?"Limite quotidienne atteinte !":"Daily limit reached!")+'</div>';
+    h+='<div style="font-size:12px;color:var(--gray)">'+(lbl?"Reviens demain pour de nouvelles parties contre l'ordinateur.":"Come back tomorrow for more games against the computer.")+'</div>';
+    h+='</div>';
+  }
 
   var levels=[
     {key:"facile",emoji:"🌱",name:lbl?"Facile":"Easy",desc:lbl?"Adversaire lent, souvent dans l'erreur":"Slow opponent, often wrong",xp:5,color:"#059669"},
@@ -3612,14 +3630,16 @@ function renderBotSetup(){
   ];
   for(var i=0;i<levels.length;i++){
     var lv=levels[i];
-    h+='<div class="defi-card" style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="startBotGame(\''+lv.key+'\')">';
+    var op=locked?"opacity:.45;filter:grayscale(60%);cursor:not-allowed":"cursor:pointer";
+    var click=locked?"":" onclick=\"startBotGame('"+lv.key+"')\"";
+    h+='<div class="defi-card" style="display:flex;align-items:center;gap:12px;'+op+'"'+click+'>';
     h+='<div style="font-size:30px">'+lv.emoji+'</div>';
     h+='<div style="flex:1">';
     h+='<div style="font-weight:800;font-size:14px;color:var(--dark)">'+lv.name+'</div>';
     h+='<div style="font-size:11px;color:var(--gray)">'+lv.desc+'</div>';
     h+='<div style="font-size:10px;font-weight:800;color:'+lv.color+';margin-top:3px">🏆 +'+lv.xp+' XP '+(lbl?"si victoire":"if you win")+'</div>';
     h+='</div>';
-    h+='<div style="font-size:20px;color:var(--gray)">&#8250;</div>';
+    h+='<div style="font-size:20px;color:var(--gray)">'+(locked?"🔒":"&#8250;")+'</div>';
     h+='</div>';
   }
   c.innerHTML=h;
@@ -3630,6 +3650,12 @@ function pickBotName(){
 }
 
 function startBotGame(levelKey){
+  // Sécurité : re-vérifie la limite quotidienne même si l'UI est censée déjà bloquer le clic
+  if(getBotUsed()>=BOT_MAX_PER_DAY){
+    renderBotSetup();
+    return;
+  }
+  incBotUsed();
   var cfg=BOT_LEVELS[levelKey]||BOT_LEVELS.normal;
   var qs=getMixedQuestions();
   if(!qs||qs.length===0){S.tq.mixed=getMixedQuestions();qs=S.tq.mixed;}
