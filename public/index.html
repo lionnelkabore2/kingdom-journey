@@ -4069,11 +4069,21 @@ function toggleBibleChap(section,chap){
   if(!Array.isArray(r[section]))r[section]=[];
   var idx=r[section].indexOf(chap);
   if(idx>-1){
-    r[section].splice(idx,1); // Décocher → retirer XP
+    r[section].splice(idx,1); // Décocher → retirer (pas de quiz nécessaire pour décocher)
+    saveBibleRead(r);
+    renderBible();
   } else {
-    r[section].push(chap); // Cocher → +5 XP
+    // Cocher un chapitre non lu = passer d'abord le mini-quiz de 5 questions
+    startChapterQuiz("plan",section,chap);
+  }
+}
+
+function completeBibleChapAfterQuiz(section,chap){
+  var r=getBibleRead();
+  if(!Array.isArray(r[section]))r[section]=[];
+  if(r[section].indexOf(chap)===-1){
+    r[section].push(chap);
     addXP(5);
-    // Mini notification
     var b=document.createElement("div");
     b.style.cssText="position:fixed;top:80px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 14px;border-radius:14px;font-weight:700;font-size:11px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)";
     b.textContent="📖 +5 XP";
@@ -4081,7 +4091,6 @@ function toggleBibleChap(section,chap){
     setTimeout(function(){if(b.parentNode)b.remove();},1800);
   }
   saveBibleRead(r);
-  renderBible();
 }
 
 function startBible(days){
@@ -4322,15 +4331,27 @@ function startLinearReading(){
 function toggleLinearChap(chap){
   var d=getBibleLinear();
   var idx=d.read.indexOf(chap);
-  if(idx>-1){d.read.splice(idx,1);}
-  else{d.read.push(chap);addXP(5);
+  if(idx>-1){
+    d.read.splice(idx,1);
+    saveBibleLinear(d);
+    renderBible();
+  } else {
+    // Cocher un chapitre non lu = passer d'abord le mini-quiz de 5 questions
+    startChapterQuiz("linear",null,chap);
+  }
+}
+
+function completeLinearChapAfterQuiz(chap){
+  var d=getBibleLinear();
+  if(d.read.indexOf(chap)===-1){
+    d.read.push(chap);
+    addXP(5);
     var b=document.createElement("div");
     b.style.cssText="position:fixed;top:80px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 14px;border-radius:14px;font-weight:700;font-size:11px;z-index:9999";
     b.textContent="&#x1F4D6; +5 XP";document.body.appendChild(b);
     setTimeout(function(){if(b.parentNode)b.remove();},1800);
   }
   saveBibleLinear(d);
-  renderBible();
 }
 
 function switchLinearTestament(){
@@ -4341,6 +4362,159 @@ function switchLinearTestament(){
   saveBibleLinear(d);
   renderBible();
 }
+// ══════════════════════════════════════════════════════════
+// ── MINI-QUIZ DE CHAPITRE (5 questions, 2 erreurs = chapitre bloqué) ─
+// ══════════════════════════════════════════════════════════
+var CHAPQ={active:false,mode:null,section:null,chap:null,qs:[],qi:0,wrong:0,answered:false};
+
+// Normalise les petites différences de nom de livre entre les données de lecture et les refs de questions
+function normalizeBookName(book){
+  if(book==="Psaumes")return"Psaume";
+  return book;
+}
+
+// Extrait {book, start, end} d'une chaîne de chapitre comme "Genèse 12", "Genèse 1-2" ou "Psaume 23"
+function parseChapterStr(chapStr){
+  var m=chapStr.match(/^(.+?)\s+(\d+)(?:-(\d+))?$/);
+  if(!m)return null;
+  return{book:normalizeBookName(m[1]),start:parseInt(m[2]),end:m[3]?parseInt(m[3]):parseInt(m[2])};
+}
+
+// Construit un pool de 5 questions pour un chapitre donné, avec repli si pas assez de questions dédiées
+function getQuestionsForChapter(chapStr){
+  var target=parseChapterStr(chapStr);
+  var all=(QS.easy||[]).concat(QS.medium||[],QS.hard||[]);
+  function shuffle(arr){var a=arr.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+  var exact=[],sameBook=[];
+  if(target){
+    for(var i=0;i<all.length;i++){
+      var rm=all[i].ref?all[i].ref.match(/^(.+?)\s+(\d+):/):null;
+      if(!rm)continue;
+      var rBook=rm[1],rChap=parseInt(rm[2]);
+      if(rBook===target.book){
+        if(rChap>=target.start&&rChap<=target.end)exact.push(all[i]);
+        else sameBook.push(all[i]);
+      }
+    }
+  }
+  exact=shuffle(exact);
+  sameBook=shuffle(sameBook);
+  var pool=exact.concat(sameBook);
+  // Complète avec des questions générales faciles si pas assez de questions liées au chapitre
+  if(pool.length<5){
+    var used={};
+    for(var i=0;i<pool.length;i++)used[pool[i].q]=true;
+    var fillers=shuffle((QS.easy||[]).filter(function(q){return !used[q.q];}));
+    pool=pool.concat(fillers);
+  }
+  return pool.slice(0,5);
+}
+
+function startChapterQuiz(mode,section,chap){
+  var qs=getQuestionsForChapter(chap);
+  if(!qs||qs.length===0){
+    // Sécurité extrême : aucune question disponible → on ne bloque pas la lecture
+    if(mode==="linear"){completeLinearChapAfterQuiz(chap);}else{completeBibleChapAfterQuiz(section,chap);}
+    renderBible();
+    return;
+  }
+  CHAPQ.active=true;
+  CHAPQ.mode=mode;
+  CHAPQ.section=section;
+  CHAPQ.chap=chap;
+  CHAPQ.qs=qs;
+  CHAPQ.qi=0;
+  CHAPQ.wrong=0;
+  CHAPQ.answered=false;
+  renderChapterQuiz();
+}
+
+function cancelChapterQuiz(){
+  CHAPQ.active=false;
+  renderBible();
+}
+
+function renderChapterQuiz(){
+  var c=document.getElementById("bible-cont");
+  if(!c)return;
+  var en=(S.lang==="en");
+  var q=CHAPQ.qs[CHAPQ.qi];
+  if(!q){finishChapterQuiz();return;}
+  var qtext=en&&q.qe?q.qe:q.q;
+
+  var h='<button class="defi-btn-out" style="margin-bottom:8px" onclick="cancelChapterQuiz()">&#8592; '+(en?"Cancel":"Annuler")+'</button>';
+  h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#059669,#047857);color:#fff">';
+  h+='<div style="font-size:11px;opacity:.9">'+(en?"Chapter quiz":"Quiz du chapitre")+' · '+CHAPQ.chap+'</div>';
+  h+='<div style="font-weight:900;font-size:16px;margin-top:2px">'+(CHAPQ.qi+1)+'/5</div>';
+  h+='<div style="font-size:11px;margin-top:4px;opacity:.9">'+(en?"Mistakes: ":"Erreurs : ")+CHAPQ.wrong+'/2</div>';
+  h+='</div>';
+
+  h+='<div class="defi-q"><div class="qq">'+qtext+'</div><div class="olist">';
+  for(var i=0;i<q.opts.length;i++){
+    var ot=q.opts[i];if(ot.indexOf(" / ")>=0){ot=en?ot.split(" / ")[1]:ot.split(" / ")[0];}
+    h+='<button class="ob" id="cqo'+i+'" onclick="answerChapterQuiz('+i+')"><span class="oi">'+("ABCD"[i])+'</span>'+ot+'</button>';
+  }
+  h+='</div></div>';
+  c.innerHTML=h;
+}
+
+function answerChapterQuiz(choice){
+  if(CHAPQ.answered)return;
+  CHAPQ.answered=true;
+  var q=CHAPQ.qs[CHAPQ.qi];
+  var ok=(q.ans===choice);
+  for(var i=0;i<q.opts.length;i++){
+    var b=document.getElementById("cqo"+i);
+    if(b){
+      b.style.pointerEvents="none";
+      if(i===q.ans)b.classList.add("ok");
+      else if(i===choice&&!ok)b.classList.add("ng");
+    }
+  }
+  if(!ok)CHAPQ.wrong++;
+  setTimeout(function(){
+    CHAPQ.qi++;
+    CHAPQ.answered=false;
+    if(CHAPQ.qi>=5||CHAPQ.wrong>=2){finishChapterQuiz();}else{renderChapterQuiz();}
+  },1200);
+}
+
+function finishChapterQuiz(){
+  var c=document.getElementById("bible-cont");
+  if(!c)return;
+  var en=(S.lang==="en");
+  var passed=(CHAPQ.wrong<2);
+
+  if(passed){
+    if(CHAPQ.mode==="linear"){completeLinearChapAfterQuiz(CHAPQ.chap);}
+    else{completeBibleChapAfterQuiz(CHAPQ.section,CHAPQ.chap);}
+  }
+  CHAPQ.active=false;
+
+  var answered=CHAPQ.qi;
+  var correct=Math.max(0,answered-CHAPQ.wrong);
+  var h='<div class="defi-winner" style="background:'+(passed?"linear-gradient(135deg,#059669,#047857)":"linear-gradient(135deg,#DC2626,#991B1B)")+'">';
+  h+='<div style="font-size:44px;margin-bottom:8px">'+(passed?"✅":"🔒")+'</div>';
+  h+='<div style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:900">';
+  h+=passed?(en?"Chapter unlocked!":"Chapitre débloqué !"):(en?"Chapter locked":"Chapitre bloqué");
+  h+='</div>';
+  h+='<div style="font-size:12px;opacity:.9;margin-top:6px">'+CHAPQ.chap+'</div>';
+  h+='<div style="font-size:12px;opacity:.9;margin-top:4px">'+correct+'/'+answered+' '+(en?"correct":"bonnes réponses")+' · '+CHAPQ.wrong+' '+(en?"mistakes":"erreurs")+'</div>';
+  if(!passed){
+    h+='<div style="font-size:12px;margin-top:10px;background:rgba(255,255,255,.2);border-radius:10px;padding:8px 12px">'+(en?"Re-read the chapter, then try again.":"Relis le chapitre, puis retente.")+'</div>';
+  }
+  h+='</div>';
+
+  if(passed){
+    h+='<button class="defi-btn" onclick="renderBible()">'+(en?"Continue →":"Continuer →")+'</button>';
+  }else{
+    h+='<button class="defi-btn" onclick="startChapterQuiz(\''+CHAPQ.mode+'\',\''+(CHAPQ.section||"")+'\',\''+CHAPQ.chap.replace(/'/g,"\\'")+'\')">🔄 '+(en?"Retry the quiz":"Retenter le quiz")+'</button>';
+    h+='<button class="defi-btn-out" onclick="renderBible()">'+(en?"Back":"Retour")+'</button>';
+  }
+  c.innerHTML=h;
+}
+
 function renderBible(){
   var c=document.getElementById("bible-cont");if(!c)return;
   var en=(S.lang==="en");
