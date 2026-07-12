@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Politique de confidentialité — Quiz Biblique C.E.V</title>
+<style>
+:root{
+  --gold:#F59E0B;--goldl:#FEF3C7;
+  --purple:#7C3AED;--purplel:#EDE9FE;--purpled:#5B21B6;
+  --blue:#2563EB;--bluel:#DBEAFE;
+  --green:#059669;--greenl:#D1FAE5;
+  --cream:#FFFBF0;--white:#FFFFFF;--gray:#6B7280;--dark:#1F2937;
+  --sh:0 4px 20px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Nunito,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:var(--cream);
+  color:var(--dark);
+  line-height:1.6;
+  padding:0 0 60px 0;
+}
+.hero{
+  background:linear-gradient(135deg,var(--purple),var(--blue));
+  color:#fff;
+  padding:40px 20px 30px;
+  text-align:center;
+}
+.hero .icon{font-size:44px;margin-bottom:10px}
+.hero h1{font-family:"Playfair Display",Georgia,serif;font-size:24px;margin-bottom:6px}
+.hero p{font-size:13px;opacity:.9}
+.lang-switch{
+  display:flex;justify-content:center;gap:8px;margin-top:16px;
+}
+.lang-switch button{
+  padding:8px 18px;border-radius:20px;border:2px solid rgba(255,255,255,.5);
+  background:rgba(255,255,255,.15);color:#fff;font-weight:800;font-size:12px;
+  cursor:pointer;font-family:inherit;
+}
+.lang-switch button.active{background:#fff;color:var(--purple);border-color:#fff}
+.wrap{max-width:720px;margin:0 auto;padding:24px 20px}
+.card{
+  background:var(--white);border-radius:16px;box-shadow:var(--sh);
+  padding:20px 22px;margin-bottom:16px;
+}
+.card h2{font-size:15px;color:var(--purpled);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.card p, .card li{font-size:13.5px;color:#374151}
+.card ul{margin:8px 0 0 18px}
+.card li{margin-bottom:6px}
+.badge{
+  display:inline-block;background:var(--purplel);color:var(--purpled);
+  font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;margin-bottom:10px;
+}
+.updated{text-align:center;font-size:11px;color:var(--gray);margin-top:20px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid #E5E7EB;vertical-align:top}
+th{color:var(--purpled);font-weight:800}
+.contact-box{
+  background:var(--purplel);border:1px solid var(--purple);border-radius:12px;
+  padding:14px;text-align:center;font-size:13px;font-weight:700;color:var(--purpled);
+}
+.lang-block{display:none}
+.lang-block.show{display:block}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="icon">✝️</div>
+  <h1 id="hero-title">Politique de confidentialité</h1>
+  <p id="hero-sub">Quiz Biblique — Christ Est Vivant (C.E.V.)</p>
+  <div class="lang-switch">
+    <button id="btn-fr" class="active" onclick="setLang('fr')">Français</button>
+    <button id="btn-en" onclick="setLang('en')">English</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ═══════════════ FRANÇAIS ═══════════════ -->
+<div class="lang-block show" id="block-fr">
+
+  <div class="card">
+    <span class="badge">Résumé</span>
+    <p><strong>Christ Est Vivant</strong> ne vend jamais vos données, n'affiche aucune publicité et ne partage vos informations qu'avec les deux prestataires techniques strictement nécessaires au fonctionnement de l'application (hébergement des données et notifications). Vous pouvez demander la suppression de votre compte et de vos données à tout moment.</p>
+  </div>
+
+  <div class="card">
+    <h2>📋 Données que nous collectons</h2>
+    <table>
+      <tr><th>Donnée</th><th>Pourquoi</th></tr>
+      <tr><td>Prénom / pseudo</td><td>Affiché dans les classements et les défis</td></tr>
+      <tr><td>Ville (facultatif)</td><td>Affichée à titre indicatif dans votre profil</td></tr>
+      <tr><td>Adresse e-mail</td><td>Connexion à votre compte (ou e-mail technique généré automatiquement en mode "connexion rapide")</td></tr>
+      <tr><td>Mot de passe</td><td>Stocké de façon chiffrée par notre prestataire d'authentification, jamais en clair</td></tr>
+      <tr><td>Scores, niveau, XP, séries de jours</td><td>Suivi de votre progression et classements</td></tr>
+      <tr><td>Identifiant d'appareil pour notifications</td><td>Vous prévenir d'un défi ou d'un rappel, uniquement si vous l'autorisez</td></tr>
+    </table>
+    <p style="margin-top:10px">Nous ne collectons ni votre localisation précise, ni vos contacts, ni votre caméra ou microphone, ni aucune donnée de paiement au sein de l'application.</p>
+  </div>
+
+  <div class="card">
+    <h2>🔒 Avec qui vos données sont partagées</h2>
+    <p>Vos données sont traitées uniquement par les prestataires techniques suivants, qui agissent en tant que sous-traitants et n'ont pas le droit de réutiliser vos données à d'autres fins :</p>
+    <ul>
+      <li><strong>Supabase</strong> — hébergement sécurisé de la base de données et de l'authentification</li>
+      <li><strong>OneSignal</strong> — envoi des notifications push (uniquement si vous les avez autorisées)</li>
+    </ul>
+    <p style="margin-top:8px">Nous ne vendons ni ne louons vos données à des tiers, et n'affichons aucune publicité dans l'application.</p>
+  </div>
+
+  <div class="card">
+    <h2>🗑️ Vos droits</h2>
+    <ul>
+      <li>Accéder à vos données ou les faire corriger</li>
+      <li>Demander la suppression complète de votre compte et de vos données</li>
+      <li>Retirer votre consentement aux notifications push à tout moment, dans les réglages de votre appareil</li>
+    </ul>
+    <p style="margin-top:8px">Pour exercer l'un de ces droits, contactez-nous à l'adresse ci-dessous.</p>
+  </div>
+
+  <div class="card">
+    <h2>👶 Enfants</h2>
+    <p>L'application n'est pas spécifiquement destinée aux enfants de moins de 13 ans et ne collecte pas sciemment de données auprès d'eux sans le consentement d'un parent ou tuteur.</p>
+  </div>
+
+  <div class="card">
+    <h2>🔐 Sécurité</h2>
+    <p>Toutes les communications entre l'application et nos serveurs sont chiffrées (HTTPS/TLS). L'accès à vos données est protégé par authentification et par des règles de sécurité au niveau de la base de données.</p>
+  </div>
+
+  <div class="contact-box">
+    📧 Une question sur vos données ?<br>
+    Contactez-nous : <span id="contact-email-fr">christestvivant12@gmail.com</span>
+  </div>
+
+  <p class="updated">Dernière mise à jour : <span id="date-fr"></span></p>
+</div>
+
+<!-- ═══════════════ ENGLISH ═══════════════ -->
+<div class="lang-block" id="block-en">
+
+  <div class="card">
+    <span class="badge">Summary</span>
+    <p><strong>Christ Is Alive</strong> never sells your data, shows no advertising, and only shares your information with the two technical providers strictly necessary to run the app (data hosting and notifications). You can request deletion of your account and data at any time.</p>
+  </div>
+
+  <div class="card">
+    <h2>📋 Data we collect</h2>
+    <table>
+      <tr><th>Data</th><th>Why</th></tr>
+      <tr><td>First name / nickname</td><td>Shown in leaderboards and challenges</td></tr>
+      <tr><td>City (optional)</td><td>Shown as reference in your profile</td></tr>
+      <tr><td>Email address</td><td>Sign-in to your account (or an auto-generated technical email in "quick login" mode)</td></tr>
+      <tr><td>Password</td><td>Stored encrypted by our authentication provider, never in plain text</td></tr>
+      <tr><td>Scores, level, XP, daily streaks</td><td>Track your progress and leaderboards</td></tr>
+      <tr><td>Device notification identifier</td><td>Notify you about a challenge or reminder, only if you allow it</td></tr>
+    </table>
+    <p style="margin-top:10px">We do not collect precise location, contacts, camera or microphone access, or any payment data within the app.</p>
+  </div>
+
+  <div class="card">
+    <h2>🔒 Who your data is shared with</h2>
+    <p>Your data is only processed by the following technical providers, acting as processors who are not permitted to reuse your data for other purposes:</p>
+    <ul>
+      <li><strong>Supabase</strong> — secure database hosting and authentication</li>
+      <li><strong>OneSignal</strong> — push notification delivery (only if you've enabled them)</li>
+    </ul>
+    <p style="margin-top:8px">We do not sell or rent your data to third parties, and the app contains no advertising.</p>
+  </div>
+
+  <div class="card">
+    <h2>🗑️ Your rights</h2>
+    <ul>
+      <li>Access or correct your data</li>
+      <li>Request full deletion of your account and data</li>
+      <li>Withdraw consent for push notifications at any time, in your device settings</li>
+    </ul>
+    <p style="margin-top:8px">To exercise any of these rights, contact us at the address below.</p>
+  </div>
+
+  <div class="card">
+    <h2>👶 Children</h2>
+    <p>The app is not specifically directed at children under 13 and does not knowingly collect data from them without parental or guardian consent.</p>
+  </div>
+
+  <div class="card">
+    <h2>🔐 Security</h2>
+    <p>All communication between the app and our servers is encrypted (HTTPS/TLS). Access to your data is protected by authentication and database-level security rules.</p>
+  </div>
+
+  <div class="contact-box">
+    📧 Questions about your data?<br>
+    Contact us: <span id="contact-email-en">votre-email@exemple.com</span>
+  </div>
+
+  <p class="updated">Last updated: <span id="date-en"></span></p>
+</div>
+
+</div>
+
+<script>
+function setLang(l){
+  document.getElementById('block-fr').className='lang-block'+(l==='fr'?' show':'');
+  document.getElementById('block-en').className='lang-block'+(l==='en'?' show':'');
+  document.getElementById('btn-fr').className=l==='fr'?'active':'';
+  document.getElementById('btn-en').className=l==='en'?'active':'';
+  document.getElementById('hero-title').textContent=l==='fr'?'Politique de confidentialité':'Privacy Policy';
+  document.getElementById('hero-sub').textContent=l==='fr'?'Quiz Biblique — Christ Est Vivant (C.E.V.)':'Bible Quiz — Christ Is Alive (C.E.V.)';
+}
+var d=new Date();
+var dstr=d.toLocaleDateString('fr-FR',{year:'numeric',month:'long',day:'numeric'});
+var dstrEn=d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+document.getElementById('date-fr').textContent=dstr;
+document.getElementById('date-en').textContent=dstrEn;
+</script>
+
+</body>
+</html>
