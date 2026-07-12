@@ -360,6 +360,20 @@ body.kid-mode #kid-toggle{background:#fff !important;color:var(--purple) !import
       <div style="font-size:11px;color:var(--gray);margin-bottom:20px" id="auth-choice-sub">Rejoins la communauté C.E.V</div>
       <button onclick="goAuthMode('reg')" style="width:100%;padding:14px;margin-bottom:10px;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:none;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 4px 15px rgba(124,58,237,.3)" id="btn-register">✨ S'inscrire</button>
       <button onclick="goAuthMode('login')" style="width:100%;padding:14px;background:#F3F4F6;color:var(--dark);border:none;border-radius:14px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer" id="btn-login">🔑 J'ai déjà un compte</button>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px">
+        <div style="flex:1;height:1px;background:#E5E7EB"></div>
+        <span style="font-size:10px;color:var(--gray);font-weight:700" id="oauth-or">ou</span>
+        <div style="flex:1;height:1px;background:#E5E7EB"></div>
+      </div>
+      <button onclick="oauthLogin('google')" style="width:100%;padding:12px;margin-bottom:8px;background:#fff;color:#374151;border:2px solid #E5E7EB;border-radius:14px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">
+        <svg width="18" height="18" viewBox="0 0 48 48" style="flex-shrink:0"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.7 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.7 3 24 3c-7.7 0-14.4 4.4-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.6 0 10.7-2.1 14.5-5.6l-6.7-5.7C29.6 35.5 26.9 36.5 24 36.5c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.5 40.4 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.7l6.7 5.7C41.5 36 45 30.5 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
+        <span id="oauth-google-lbl">Continuer avec Google</span>
+      </button>
+      <button onclick="oauthLogin('facebook')" style="width:100%;padding:12px;background:#1877F2;color:#fff;border:none;border-radius:14px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" style="flex-shrink:0"><path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12c0 5 3.7 9.1 8.4 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7C18.3 21.1 22 17 22 12z"/></svg>
+        <span id="oauth-fb-lbl">Continuer avec Facebook</span>
+      </button>
     </div>
   </div>
 
@@ -633,7 +647,12 @@ var T={fr:{subtitle:"CHRIST EST VIVANT",logout:"Déconnexion",pts:"Points",quiz:
 en:{subtitle:"CHRIST IS ALIVE",logout:"Logout",pts:"Points",quiz:"Quiz",jours:"Days",rang:"Rank",welcome:"Hello",verse_sub:"Let the Word dwell in you richly.",defi_title:"📅 Daily Challenge",quiz_title:"Bible Quiz",quiz_sub:"Mixed questions · +1/+2/+3 pts",quiz_lbl:"Play →",verse_title:"Verse of the Day",verse_sub2:"LS 1910 · Meditation",verse_lbl:"Read →",cls_title:"Leaderboard",cls_sub:"Challenge friends in real time",cls_lbl:"View →",tab_easy:"Beginner",tab_med:"Intermediate",tab_hard:"Advanced",rest:"remaining today",correct:"✅ Correct!",well_done:"Well done!",wrong:"❌ Wrong",good_ans:"Right answer:",next_q:"Next question →",quiz_done_title:"Today's quiz complete!",quiz_done_p:"You've used your <strong>20 questions</strong> for today.<br>Come back tomorrow!",new_q:"🔄 New questions tomorrow",cls_btn:"🏆 Leaderboard",score_lbl:"Score",cls_today:"Today's Leaderboard",cls_reset:"Top 10 · Resets at midnight every day",my_score:"📊 My score today",q_left:"Q left",no_players:"🙏 No players yet today.<br>Play the Quiz to appear here!",online:"Online · Real time",join:"Join the challenge",email_pw:"Email + Password",email_pw_sub:"Permanent account",name_only:"Just a name",name_only_sub:"Quick login, no password",prenom:"First name",email:"Email",pw:"Password",ville:"City",start:"Start →",already:"Already have an account?",signin:"Sign in",no_account:"No account yet?",register:"Sign up",err_fields:"Please fill all fields",err_login:"Wrong email or password",loading:"Loading...",ls:"📖 Louis Segond 1910",exceptional:"Exceptional! You know God's Word perfectly!",great:"Great! You know your Bible well. Keep going!",good:"Good effort! Read your Bible every day to improve!",keep:"Don't give up! God's Word is a treasure.",share_txt:"✝️ Bible Quiz C.E.V\nLouis Segond 1910\nToday's score:"}};
 function t(k){return(T[S.lang]||T.fr)[k]||k;}
 function setLang(lang,btn){S.lang=lang;document.querySelectorAll(".lang-btn").forEach(function(b){b.classList.remove("active");});if(btn)btn.classList.add("active");applyLangUI();}
-function applyLangUI(){var ids={"h-sub":"subtitle","h-logout":"logout","sl-pts":"pts","sl-quiz":"quiz","sl-streak":"jours","sl-rank":"rang","home-sub":"verse_sub","dc-title":"defi_title","mc-quiz-title":"quiz_title","mc-quiz-sub":"quiz_sub","mc-quiz-lbl":"quiz_lbl","mc-verse-title":"verse_title","mc-verse-lbl":"verse_lbl","mc-cls-title":"cls_title","mc-cls-sub":"cls_sub","mc-cls-lbl":"cls_lbl","tab-easy":"tab_easy","tab-med":"tab_med","tab-hard":"tab_hard","nav-home-lbl":"welcome","nav-quiz-lbl":"quiz_title","nav-verset-lbl":"verse_title","nav-cls-lbl":"cls_title","opt-email-lbl":"email_pw","opt-email-sub":"email_pw_sub","opt-name-lbl":"name_only","opt-name-sub":"name_only_sub","lbl-prenom":"prenom","lbl-email":"email","lbl-pw":"pw","lbl-ville":"ville","lbl-prenom2":"prenom","lbl-ville2":"ville","abtn":"start","ac-title":"join","ql-rest":"rest","mc-verse-sub":"verse_sub2","verse-screen-title":"verse_title","cls-screen-title":"cls_title","quiz-screen-title":"quiz_title"};for(var id in ids){var el=document.getElementById(id);if(el)el.textContent=t(ids[id]);}var sw=document.getElementById("aswitch");if(sw)sw.innerHTML=t(S.mode==="reg"?"already":"no_account")+' <span onclick="toggleLogin()">'+t(S.mode==="reg"?"signin":"register")+"</span>";}
+function applyLangUI(){var ids={"h-sub":"subtitle","h-logout":"logout","sl-pts":"pts","sl-quiz":"quiz","sl-streak":"jours","sl-rank":"rang","home-sub":"verse_sub","dc-title":"defi_title","mc-quiz-title":"quiz_title","mc-quiz-sub":"quiz_sub","mc-quiz-lbl":"quiz_lbl","mc-verse-title":"verse_title","mc-verse-lbl":"verse_lbl","mc-cls-title":"cls_title","mc-cls-sub":"cls_sub","mc-cls-lbl":"cls_lbl","tab-easy":"tab_easy","tab-med":"tab_med","tab-hard":"tab_hard","nav-home-lbl":"welcome","nav-quiz-lbl":"quiz_title","nav-verset-lbl":"verse_title","nav-cls-lbl":"cls_title","opt-email-lbl":"email_pw","opt-email-sub":"email_pw_sub","opt-name-lbl":"name_only","opt-name-sub":"name_only_sub","lbl-prenom":"prenom","lbl-email":"email","lbl-pw":"pw","lbl-ville":"ville","lbl-prenom2":"prenom","lbl-ville2":"ville","abtn":"start","ac-title":"join","ql-rest":"rest","mc-verse-sub":"verse_sub2","verse-screen-title":"verse_title","cls-screen-title":"cls_title","quiz-screen-title":"quiz_title"};for(var id in ids){var el=document.getElementById(id);if(el)el.textContent=t(ids[id]);}var sw=document.getElementById("aswitch");if(sw)sw.innerHTML=t(S.mode==="reg"?"already":"no_account")+' <span onclick="toggleLogin()">'+t(S.mode==="reg"?"signin":"register")+"</span>";
+  var en=(S.lang==="en");
+  var oGo=document.getElementById("oauth-google-lbl");if(oGo)oGo.textContent=en?"Continue with Google":"Continuer avec Google";
+  var oFb=document.getElementById("oauth-fb-lbl");if(oFb)oFb.textContent=en?"Continue with Facebook":"Continuer avec Facebook";
+  var oOr=document.getElementById("oauth-or");if(oOr)oOr.textContent=en?"or":"ou";
+}
 // ── AUTH ──────────────────────────────────────────────────
 function showMsg(msg,isInfo){
   var el=document.getElementById("amsg");
@@ -4848,7 +4867,45 @@ function renderBible(){
 }
 </script>
 <script>
+// ── CONNEXION VIA GOOGLE / FACEBOOK (OAuth Supabase) ──────
+function oauthLogin(provider){
+  var redirect=window.location.origin+window.location.pathname;
+  window.location.href=SB_URL+"/auth/v1/authorize?provider="+provider+"&redirect_to="+encodeURIComponent(redirect);
+}
+
+// Traite le retour d'une connexion OAuth : Supabase redirige avec les tokens dans le fragment d'URL (#access_token=...)
+async function handleOAuthCallback(){
+  var hash=window.location.hash;
+  if(!hash||hash.indexOf("access_token=")===-1)return false;
+  var params={};
+  hash.substring(1).split("&").forEach(function(p){
+    var kv=p.split("=");
+    if(kv[0])params[decodeURIComponent(kv[0])]=decodeURIComponent(kv[1]||"");
+  });
+  var accessToken=params.access_token;
+  var refreshTok=params.refresh_token;
+  if(!accessToken)return false;
+  // Nettoie immédiatement l'URL (ne pas laisser le token visible ni le retraiter au rechargement)
+  try{history.replaceState(null,"",window.location.pathname);}catch(e){}
+  try{
+    var res=await fetch(SB_URL+"/auth/v1/user",{headers:{"Authorization":"Bearer "+accessToken,"apikey":SB_KEY}});
+    var u=await res.json();
+    if(!u||!u.id)return false;
+    var meta=u.user_metadata||{};
+    var fullName=meta.full_name||meta.name||meta.given_name||(u.email?u.email.split("@")[0]:"Ami");
+    var prenom=String(fullName).split(" ")[0].slice(0,20);
+    var pseudo=String(fullName).slice(0,20);
+    // Crée le profil s'il n'existe pas encore (idempotent, ne réécrit rien s'il existe déjà)
+    await sbPost("cev_profiles?on_conflict=id",{id:u.id,prenom:prenom,pseudo:pseudo,ville:"Non precisee",score_total:0},"resolution=ignore-duplicates");
+    if(refreshTok){try{localStorage.setItem("cev_refresh_token",refreshTok);}catch(e){}}
+    loginNow(u.id,prenom,"Non precisee",0,accessToken,pseudo);
+    return true;
+  }catch(e){console.log("OAuth callback err",e);return false;}
+}
+
 window.onload=async function(){
+  // Retour d'une connexion Google/Facebook : traite le token et saute la restauration de session normale
+  if(await handleOAuthCallback())return;
   // Enregistrer le Service Worker uniquement sur le vrai domaine Vercel
   if('serviceWorker' in navigator && location.hostname.includes('vercel.app') || location.hostname.includes('kingdom-journey')){
     navigator.serviceWorker.register('/sw.js').catch(function(){});
