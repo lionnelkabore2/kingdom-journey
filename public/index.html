@@ -997,10 +997,9 @@ async function doLogin(){
     var prenomClean=meta.prenom||contact.split("@")[0].slice(0,20);
     var pseudoClean=meta.pseudo||prenomClean;
     var ville=meta.ville||"Non precisee";
+    // Le score du jour est resynchronisé depuis cev_scores (source de vérité) dans loginNow()
+    // — cev_profiles.score_total n'est jamais mis à jour ailleurs et ne doit plus servir ici.
     loginNow(uid,prenomClean,ville,0,tok,pseudoClean);
-    setTimeout(async function(){
-      try{var prof=await getProfile(uid,tok);if(prof){S.score=prof.score_total||0;updateXPBar();}}catch(e){}
-    },600);
   }catch(e){
     showErr(S.lang==="en"?"❌ Network error. Check your internet connection.":"❌ Erreur réseau. Vérifie ta connexion internet.");
   }
@@ -1048,13 +1047,18 @@ function loginNow(uid,prenom,ville,score,tok,pseudo){
   pseudo=pseudo||prenom;
   S.user={id:uid,prenom:prenom,pseudo:pseudo,ville:ville};
   S.token=tok;
-  S.score=score||0;
+  S.score=score||0; // valeur provisoire affichée immédiatement, corrigée juste après par le serveur
   // Sauvegarder refresh token si disponible
   var ao=document.getElementById("ao");
   if(ao){ao.classList.add("h");ao.style.display="none";}
   try{localStorage.setItem("cev_session",JSON.stringify({uid:uid,prenom:prenom,pseudo:pseudo,ville:ville,score:score||0,token:tok,day:todayStr(),lang:S.lang}));}catch(e){}
   initApp();
-  // Arrière-plan : streak + score
+  // ── Resynchronisation IMMÉDIATE du score du jour depuis cev_scores (source de vérité) ──
+  // Corrige le bug historique : avant, S.score démarrait toujours à 0 (connexion rapide)
+  // ou à cev_profiles.score_total (jamais mis à jour), puis un saveScore() automatique
+  // écrasait le vrai score du jour déjà enregistré côté serveur avec cette valeur fausse.
+  syncTodayScoreFromServer();
+  // Arrière-plan : streak + XP (n'écrit plus le score — laissé à syncTodayScoreFromServer / au jeu réel)
   setTimeout(function(){
     try{
       var streak=updateStreak();
@@ -1070,7 +1074,6 @@ function loginNow(uid,prenom,ville,score,tok,pseudo){
         }
       }
     }catch(e){}
-    saveScore();
   },400);
   // OneSignal après 5s
   setTimeout(function(){
@@ -2189,6 +2192,28 @@ function share(){
   else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
 }
 
+// ── SOURCE DE VÉRITÉ DU SCORE DU JOUR (corrige le classement qui ne se mettait pas à jour) ──
+// Avant toute écriture, on relit systématiquement le score déjà enregistré côté serveur
+// pour aujourd'hui, plutôt que de faire confiance à une valeur locale potentiellement
+// obsolète (nouvelle session, autre appareil, changement de jour, etc.)
+async function fetchTodayScore(uid){
+  try{
+    var today=todayStr();
+    var r=await sbGet("cev_scores?user_id=eq."+uid+"&day=eq."+today+"&select=score&limit=1");
+    if(r.ok&&r.data&&r.data[0])return r.data[0].score||0;
+  }catch(e){console.log("fetchTodayScore err",e);}
+  return 0;
+}
+
+async function syncTodayScoreFromServer(){
+  if(!S.user||!S.user.id)return;
+  var serverScore=await fetchTodayScore(S.user.id);
+  // Le serveur fait foi : si l'utilisateur a déjà des points aujourd'hui (autre appareil,
+  // session précédente...), on les récupère au lieu de repartir de 0 ou d'une valeur locale fausse.
+  S.score=serverScore;
+  addScore(0); // met à jour l'affichage (#ts / #ss) + le cache local, sans changer la valeur
+}
+
 // ── SCORE & SUPABASE ───────────────────────────────────────
 function addScore(pts){
   S.score=Math.max(0,S.score+pts);
@@ -2276,7 +2301,8 @@ async function fetchCls(period){
   var week=today.slice(0,4)+"-W"+String(wn).padStart(2,"0");
   var month=today.slice(0,7);
   var filter=period==="day"?"day=eq."+today:period==="week"?"week=eq."+week:"month=eq."+month;
-  return await sbGet("cev_scores?"+filter+"&order=score.desc&limit=50&select=user_id,prenom,ville,score");
+  var lim=period==="day"?50:300;
+  return await sbGet("cev_scores?"+filter+"&order=score.desc&limit="+lim+"&select=user_id,prenom,ville,score");
 }
 
 async function renderCls(){
@@ -2297,12 +2323,23 @@ async function renderCls(){
   var r=await fetchCls(CLS_PERIOD);
   var list=r.ok&&Array.isArray(r.data)?r.data:[];
 
-  // Déduplique par user_id (garde le max score pour semaine/mois)
-  var seen={},uniq=[];
+  // Jour : une seule ligne par utilisateur, on la garde telle quelle.
+  // Semaine/Mois : cev_scores a une ligne par (utilisateur, jour) — il faut donc
+  // additionner les scores de chaque jour de la période pour obtenir le vrai total,
+  // sinon le classement semaine/mois n'affichait que le score du meilleur jour isolé.
+  var seen={},order=[];
   for(var x=0;x<list.length;x++){
     var row=list[x];
-    if(!seen[row.user_id]){seen[row.user_id]=true;uniq.push(row);}
+    if(!seen[row.user_id]){
+      seen[row.user_id]={user_id:row.user_id,prenom:row.prenom,ville:row.ville,score:row.score};
+      order.push(row.user_id);
+    }else if(CLS_PERIOD!=="day"){
+      seen[row.user_id].score+=row.score;
+      if(row.prenom)seen[row.user_id].prenom=row.prenom; // garder le pseudo le plus récent
+    }
   }
+  var uniq=order.map(function(id){return seen[id];});
+  uniq.sort(function(a,b){return b.score-a.score;});
   list=uniq.slice(0,10);
 
   var uid=S.user?S.user.id:null;
@@ -4284,6 +4321,10 @@ window.onload=async function(){
         var ob=document.getElementById("onboarding");
         if(ob)ob.style.display="none";
         initApp();
+        // Resynchroniser le score du jour depuis le serveur : corrige le cas où la session
+        // locale date d'un autre jour (le score ne doit pas être reporté d'un jour sur l'autre)
+        // ou d'un autre appareil dont la progression n'était pas encore reflétée ici.
+        syncTodayScoreFromServer();
         return;
       }
     }
