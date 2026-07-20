@@ -2811,6 +2811,7 @@ var BOT={active:false,level:"normal",qs:[],qi:0,myScore:0,botScore:0,answered:fa
 // CSS défi déjà dans le <style> principal
 
 function genCode(){return String(Math.floor(1000+Math.random()*9000));}
+function genGroupCode(){var chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";var c="";for(var i=0;i<6;i++)c+=chars[Math.floor(Math.random()*chars.length)];return c;}
 
 // ── TUTORIEL CHALLENGE ────────────────────────────────────
 var TUTO_KEY="cev_tuto_defi_seen";
@@ -2961,6 +2962,13 @@ function renderDefiChoice(){
     h+='<div style="font-size:10px;color:var(--gray);font-weight:700;margin-bottom:8px">&#9876; '+left+'/'+DEFI_MAX_PER_DAY+' '+(lbl?"challenges aujourd'hui":"challenges left today")+'</div>';
     h+='<button class="defi-btn" onclick="event.stopPropagation();openDefiRoomMenu()">👥 '+(lbl?"Créer / rejoindre":"Create / join")+'</button>';
     h+='</div>';
+
+    h+='<div class="defi-card" style="text-align:center;cursor:pointer;background:linear-gradient(145deg,#EDE9FE,#FFFBF0)" onclick="openGroupHome()">';
+    h+='<div style="font-size:34px;margin-bottom:6px">👨‍👩‍👧‍👦</div>';
+    h+='<h3 style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px">'+(lbl?"Mon groupe":"My group")+'</h3>';
+    h+='<p style="font-size:11px;color:var(--gray);margin-bottom:10px">'+(lbl?"Famille, cellule d'église... suis-les dans la durée":"Family, church cell... follow them over time")+'</p>';
+    h+='<button class="defi-btn" style="background:linear-gradient(135deg,#7C3AED,#5B21B6)" onclick="event.stopPropagation();openGroupHome()">👨‍👩‍👧‍👦 '+(lbl?"Voir mon groupe":"View my group")+'</button>';
+    h+='</div>';
   }
 
   c.innerHTML=h;
@@ -2975,6 +2983,184 @@ function backToDefiChoice(){
   DEFI_VIEW=null;
   renderDefiChoice();
 }
+
+// ══════════════════════════════════════════════════════════
+// ── MODE GROUPE PERMANENT (famille, cellule d'église, etc.) ─
+// ══════════════════════════════════════════════════════════
+var GROUP={current:null,members:[],view:"loading"}; // view: loading | none | dashboard
+
+function openGroupHome(){
+  GROUP.view="loading";
+  renderGroupHome();
+  loadMyGroup();
+}
+
+async function loadMyGroup(){
+  if(!S.user){GROUP.view="none";renderGroupHome();return;}
+  try{
+    var r=await sbGet("cev_group_members?user_id=eq."+S.user.id+"&select=group_id&limit=1");
+    if(r.ok&&r.data&&r.data[0]){
+      var gr=await sbGet("cev_groups?id=eq."+r.data[0].group_id+"&limit=1");
+      if(gr.ok&&gr.data&&gr.data[0]){
+        GROUP.current=gr.data[0];
+        await loadGroupMembers(GROUP.current.id);
+        GROUP.view="dashboard";
+        renderGroupHome();
+        return;
+      }
+    }
+    GROUP.current=null;GROUP.members=[];GROUP.view="none";
+    renderGroupHome();
+  }catch(e){console.log("loadMyGroup err",e);GROUP.view="none";renderGroupHome();}
+}
+
+async function loadGroupMembers(groupId){
+  var r=await sbGet("cev_group_members?group_id=eq."+groupId+"&select=user_id,prenom,date_join&order=date_join.asc");
+  GROUP.members=(r.ok&&Array.isArray(r.data))?r.data:[];
+}
+
+function renderGroupHome(){
+  var c=document.getElementById("defi-cont");
+  if(!c)return;
+  var lbl=(S.lang==="fr");
+  var h='<button class="defi-btn-out" style="margin-bottom:2px" onclick="backToDefiChoice()">&#8592; '+(lbl?"Retour":"Back")+'</button>';
+
+  if(GROUP.view==="loading"){
+    h+='<div class="defi-card" style="text-align:center"><div style="font-size:30px">⏳</div></div>';
+    c.innerHTML=h;
+    return;
+  }
+
+  if(GROUP.view==="none"){
+    h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
+    h+='<div style="font-size:40px;margin-bottom:8px">👨‍👩‍👧‍👦</div>';
+    h+='<h2 style="font-family:Playfair Display,serif;font-size:18px;color:#fff;margin-bottom:5px">'+(lbl?"Tu n'as pas encore de groupe":"You don't have a group yet")+'</h2>';
+    h+='<p style="font-size:11px;color:rgba(255,255,255,.85)">'+(lbl?"Crée un groupe familial ou de cellule, ou rejoins-en un avec un code":"Create a family or cell group, or join one with a code")+'</p>';
+    h+='</div>';
+
+    h+='<div class="defi-card">';
+    h+='<label style="font-size:11px;font-weight:800;color:var(--purple)">'+(lbl?"Nom du nouveau groupe":"New group name")+'</label>';
+    h+='<input type="text" id="grp-name-inp" placeholder="'+(lbl?"Ex: Famille Kaboré":"Ex: The Smith Family")+'" maxlength="30" style="width:100%;padding:10px;margin-top:6px;border:2px solid #E5E7EB;border-radius:10px;font-family:Nunito,sans-serif;font-size:13px;box-sizing:border-box">';
+    h+='<button class="defi-btn" onclick="createGroup()">✨ '+(lbl?"Créer mon groupe":"Create my group")+'</button>';
+    h+='</div>';
+
+    h+='<div class="defi-card">';
+    h+='<label style="font-size:11px;font-weight:800;color:var(--purple)">'+(lbl?"Rejoindre avec un code":"Join with a code")+'</label>';
+    h+='<input type="text" id="grp-code-inp" placeholder="ABC123" maxlength="6" style="width:100%;padding:10px;margin-top:6px;border:2px solid #E5E7EB;border-radius:10px;font-family:Nunito,sans-serif;font-size:13px;text-transform:uppercase;box-sizing:border-box">';
+    h+='<button class="defi-btn-out" onclick="joinGroupByCode()">🔑 '+(lbl?"Rejoindre":"Join")+'</button>';
+    h+='</div>';
+
+    c.innerHTML=h;
+    return;
+  }
+
+  // Dashboard d'un groupe existant
+  var g=GROUP.current;
+  h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
+  h+='<div style="font-size:34px;margin-bottom:6px">👨‍👩‍👧‍👦</div>';
+  h+='<h2 style="font-family:Playfair Display,serif;font-size:18px;color:#fff;margin-bottom:5px">'+g.nom+'</h2>';
+  h+='<div style="font-size:11px;color:rgba(255,255,255,.85);margin-bottom:8px">'+GROUP.members.length+' '+(lbl?"membre(s)":"member(s)")+'</div>';
+  h+='<div style="font-size:11px;font-weight:800;background:rgba(255,255,255,.2);display:inline-block;padding:5px 14px;border-radius:12px;letter-spacing:2px">'+g.code+'</div>';
+  h+='<div style="font-size:9px;color:rgba(255,255,255,.7);margin-top:5px">'+(lbl?"Code à partager pour inviter":"Share this code to invite")+'</div>';
+  h+='</div>';
+
+  h+='<button class="defi-btn" onclick="challengeMyGroup()">⚔️ '+(lbl?"Défier mon groupe":"Challenge my group")+'</button>';
+
+  h+='<div class="defi-card">';
+  h+='<h3 style="font-size:12px;font-weight:800;color:var(--purple);margin-bottom:10px">🏆 '+(lbl?"Classement du groupe (aujourd'hui)":"Group leaderboard (today)")+'</h3>';
+  h+='<div id="grp-leaderboard" style="font-size:12px;color:var(--gray)">'+(lbl?"Chargement...":"Loading...")+'</div>';
+  h+='</div>';
+
+  h+='<div class="defi-card">';
+  h+='<h3 style="font-size:12px;font-weight:800;color:var(--purple);margin-bottom:10px">👥 '+(lbl?"Membres":"Members")+'</h3>';
+  for(var i=0;i<GROUP.members.length;i++){
+    h+='<div style="padding:6px 0;font-size:13px;color:var(--dark);border-bottom:1px solid #F3F4F6">'+(i+1)+'. '+(GROUP.members[i].prenom||"?")+'</div>';
+  }
+  h+='</div>';
+
+  h+='<button class="defi-btn-out" style="color:var(--red);border-color:var(--red)" onclick="leaveGroupConfirm()">'+(lbl?"Quitter le groupe":"Leave group")+'</button>';
+
+  c.innerHTML=h;
+  loadGroupLeaderboard(g.id);
+}
+
+async function createGroup(){
+  if(!S.user||!S.token){alert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
+  var inp=document.getElementById("grp-name-inp");
+  var nom=inp?inp.value.trim():"";
+  if(!nom){alert(S.lang==="fr"?"Donne un nom à ton groupe":"Give your group a name");return;}
+  try{
+    var code=genGroupCode();
+    var pseudo=S.user.pseudo||S.user.prenom;
+    var r=await sbPost("cev_groups",{nom:nom,code:code,createur_id:S.user.id});
+    if(!r.ok){alert((S.lang==="fr"?"Erreur création groupe ":"Group creation error ")+r.status);return;}
+    var group=Array.isArray(r.data)?r.data[0]:r.data;
+    if(!group||!group.id){alert(S.lang==="fr"?"Erreur création groupe":"Group creation failed");return;}
+    await sbPost("cev_group_members",{group_id:group.id,user_id:S.user.id,prenom:pseudo});
+    openGroupHome();
+  }catch(e){alert((S.lang==="fr"?"Erreur réseau: ":"Network error: ")+e.message);}
+}
+
+async function joinGroupByCode(){
+  if(!S.user||!S.token){alert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
+  var inp=document.getElementById("grp-code-inp");
+  var code=inp?inp.value.trim().toUpperCase():"";
+  if(!code){alert(S.lang==="fr"?"Entre un code de groupe":"Enter a group code");return;}
+  try{
+    var gr=await sbGet("cev_groups?code=eq."+code+"&limit=1");
+    if(!gr.ok||!gr.data||!gr.data[0]){alert(S.lang==="fr"?"Aucun groupe avec ce code":"No group found with this code");return;}
+    var group=gr.data[0];
+    var pseudo=S.user.pseudo||S.user.prenom;
+    var r=await sbPost("cev_group_members",{group_id:group.id,user_id:S.user.id,prenom:pseudo},"resolution=ignore-duplicates");
+    if(!r.ok){alert((S.lang==="fr"?"Erreur pour rejoindre ":"Error joining ")+r.status);return;}
+    openGroupHome();
+  }catch(e){alert((S.lang==="fr"?"Erreur réseau: ":"Network error: ")+e.message);}
+}
+
+async function leaveGroupConfirm(){
+  var lbl=(S.lang==="fr");
+  if(!confirm(lbl?"Quitter ce groupe ?":"Leave this group?"))return;
+  if(!GROUP.current||!S.user)return;
+  try{
+    await sbFetchAuth(SB_URL+"/rest/v1/cev_group_members?group_id=eq."+GROUP.current.id+"&user_id=eq."+S.user.id,{method:"DELETE"});
+  }catch(e){console.log("leaveGroup err",e);}
+  GROUP.current=null;GROUP.members=[];
+  openGroupHome();
+}
+
+async function loadGroupLeaderboard(groupId){
+  var el=document.getElementById("grp-leaderboard");
+  if(!el)return;
+  var lbl=(S.lang==="fr");
+  var ids=GROUP.members.map(function(m){return m.user_id;});
+  if(ids.length===0){el.textContent=lbl?"Aucun membre":"No members";return;}
+  try{
+    var today=todayStr();
+    var r=await sbGet("cev_scores?day=eq."+today+"&user_id=in.("+ids.join(",")+")&select=user_id,prenom,score&order=score.desc");
+    var rows=(r.ok&&Array.isArray(r.data))?r.data:[];
+    if(rows.length===0){el.innerHTML='<div style="text-align:center;padding:10px 0">'+(lbl?"Personne n'a encore joué aujourd'hui":"No one has played today yet")+'</div>';return;}
+    var h="";
+    for(var i=0;i<rows.length;i++){
+      h+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F3F4F6">';
+      h+='<span style="font-weight:700;color:var(--dark)">'+(i+1)+'. '+(rows[i].prenom||"?")+'</span>';
+      h+='<span style="font-weight:800;color:var(--purple)">'+rows[i].score+' pts</span>';
+      h+='</div>';
+    }
+    el.innerHTML=h;
+  }catch(e){el.textContent=lbl?"Erreur de chargement":"Loading error";}
+}
+
+function challengeMyGroup(){
+  if(!GROUP.current||GROUP.members.length===0)return;
+  if(getDefiUsed()>=DEFI_MAX_PER_DAY){
+    alert(S.lang==="fr"?"Limite de 10 challenges atteinte aujourd'hui !":"10 challenge limit reached today!");
+    return;
+  }
+  // Dimensionne la salle au nombre de membres du groupe (min 2, max 12) puis réutilise le moteur de challenge existant
+  DEFI_SIZE=Math.max(2,Math.min(12,GROUP.members.length));
+  createRoom();
+}
+
 
 function getDefiUsedKey(){return"cev_defi_"+todayStr()+"_"+(S.user?S.user.id:"");}
 function getDefiUsed(){try{return parseInt(localStorage.getItem(getDefiUsedKey())||"0");}catch(e){return 0;}}
