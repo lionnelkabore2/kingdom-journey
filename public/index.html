@@ -307,6 +307,7 @@ body.kid-mode #kid-toggle{background:#fff !important;color:var(--purple) !import
 .defi-timer.urgent{color:var(--red);animation:urgentPulse .5s infinite alternate}
 @keyframes urgentPulse{from{transform:scale(1)}to{transform:scale(1.1)}}
 @keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+@keyframes modalPop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
 .defi-winner{text-align:center;padding:20px;background:linear-gradient(135deg,var(--gold),var(--orange));border-radius:16px;margin-bottom:10px;color:#fff}
 .defi-input{width:100%;padding:14px;border:2px solid #E5E7EB;border-radius:12px;font-family:Nunito,sans-serif;font-size:22px;text-align:center;letter-spacing:8px;font-weight:800;color:var(--purple);margin:10px 0;outline:none}
 .defi-input:focus{border-color:var(--purple)}
@@ -642,10 +643,76 @@ function toggleKidMode(){
     else if(id==="bible")renderBible();
   }
 }
+
+// ── FENÊTRES MODALES MAISON ─────────────────────────────────
+// Remplace showAlert()/confirm()/prompt() : ces popups natives du navigateur peuvent être
+// masquées, mal stylées, ou bloquantes de façon imprévisible dans le conteneur Android
+// (TWA) généré par PWABuilder pour le Play Store. Ce système maison est garanti stable
+// partout, et reprend le style visuel du reste de l'app.
+function closeModal(){
+  var ov=document.getElementById("custom-modal-overlay");
+  if(ov)ov.remove();
+}
+
+function showModal(opts){
+  closeModal(); // Un seul modal actif à la fois
+  var ov=document.createElement("div");
+  ov.id="custom-modal-overlay";
+  ov.style.cssText="position:fixed;inset:0;background:rgba(17,24,39,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box";
+  var box=document.createElement("div");
+  box.style.cssText="background:#fff;border-radius:18px;padding:22px;max-width:340px;width:100%;box-shadow:0 15px 50px rgba(0,0,0,.35);font-family:Nunito,sans-serif;animation:modalPop .2s ease";
+  var h="";
+  if(opts.title)h+='<div style="font-family:\'Playfair Display\',serif;font-weight:800;font-size:16px;color:var(--dark);margin-bottom:10px">'+opts.title+'</div>';
+  h+='<div id="custom-modal-body">'+opts.body+'</div>';
+  h+='<div id="custom-modal-btns" style="display:flex;gap:8px;margin-top:16px"></div>';
+  box.innerHTML=h;
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  var btnWrap=box.querySelector("#custom-modal-btns");
+  (opts.buttons||[]).forEach(function(b){
+    var btn=document.createElement("button");
+    btn.textContent=b.label;
+    var bg=b.primary?("background:linear-gradient(135deg,"+(b.danger?"#DC2626,#991B1B":"#7C3AED,#2563EB")+");color:#fff"):"background:#F3F4F6;color:#1F2937";
+    btn.style.cssText="flex:1;padding:12px;border-radius:12px;font-family:Nunito,sans-serif;font-weight:800;font-size:13px;cursor:pointer;border:none;"+bg;
+    btn.onclick=b.onClick;
+    btnWrap.appendChild(btn);
+  });
+  ov.onclick=function(e){if(e.target===ov)closeModal();};
+  // Focus le premier champ texte s'il y en a un (confort de saisie)
+  setTimeout(function(){var inp=box.querySelector("input");if(inp)inp.focus();},50);
+}
+
+function showAlert(msg,title){
+  var en=(S.lang==="en");
+  showModal({
+    title:title||(en?"Notice":"Information"),
+    body:'<p style="font-size:13px;color:#1F2937;line-height:1.5;margin:0">'+msg+'</p>',
+    buttons:[{label:"OK",primary:true,onClick:closeModal}]
+  });
+}
+
+function showConfirm(msg,onYes,title){
+  var en=(S.lang==="en");
+  showModal({
+    title:title||(en?"Confirm":"Confirmation"),
+    body:'<p style="font-size:13px;color:#1F2937;line-height:1.5;margin:0">'+msg+'</p>',
+    buttons:[
+      {label:en?"Cancel":"Annuler",primary:false,onClick:closeModal},
+      {label:en?"Confirm":"Confirmer",primary:true,danger:true,onClick:function(){closeModal();onYes();}}
+    ]
+  });
+}
+
 // ── TRANSLATIONS ──────────────────────────────────────────
 var T={fr:{subtitle:"CHRIST EST VIVANT",logout:"Déconnexion",pts:"Points",quiz:"Quiz",jours:"Jours",rang:"Rang",welcome:"Bonjour",verse_sub:"Que la Parole habite en toi richement.",defi_title:"📅 Défi du jour",quiz_title:"Quiz Biblique",quiz_sub:"Questions mélangées · +1/+2/+3 pts",quiz_lbl:"Jouer →",verse_title:"Verset du Jour",verse_sub2:"LS 1910 · Méditation",verse_lbl:"Lire →",cls_title:"Classement",cls_sub:"Défie tes amis en temps réel",cls_lbl:"Voir →",tab_easy:"Débutant",tab_med:"Intermédiaire",tab_hard:"Avancé",rest:"restantes aujourd'hui",correct:"✅ Correct !",well_done:"Bien joué !",wrong:"❌ Incorrect",good_ans:"Bonne réponse :",next_q:"Question suivante →",quiz_done_title:"Quiz du jour terminé !",quiz_done_p:"Tu as utilisé tes <strong>20 questions</strong> pour aujourd'hui.<br>Reviens demain !",new_q:"🔄 Nouvelles questions demain",cls_btn:"🏆 Classement",score_lbl:"Score",cls_today:"Classement du Jour",cls_reset:"Top 10 · Se remet à zéro chaque jour à minuit",my_score:"📊 Mon score aujourd'hui",q_left:"Q restantes",no_players:"🙏 Aucun joueur encore aujourd'hui.<br>Joue au Quiz pour apparaître ici !",online:"En ligne · Temps réel",join:"Rejoindre le défi",email_pw:"Email + Mot de passe",email_pw_sub:"Compte permanent",name_only:"Juste un prénom",name_only_sub:"Connexion rapide, sans mot de passe",prenom:"Prénom",email:"Email",pw:"Mot de passe",ville:"Ville",start:"Commencer →",already:"Déjà un compte ?",signin:"Se connecter",no_account:"Pas encore de compte ?",register:"S'inscrire",err_fields:"Remplis tous les champs",err_login:"Email ou mot de passe incorrect",loading:"Chargement...",ls:"📖 Louis Segond 1910",exceptional:"Exceptionnel ! Tu maîtrises parfaitement la Parole de Dieu !",great:"Très bien ! Tu connais bien ta Bible. Continue !",good:"Bon effort ! Lis ta Bible chaque jour pour progresser !",keep:"Ne te décourage pas ! La Parole de Dieu est un trésor.",share_txt:"✝️ Quiz Biblique C.E.V\nBible Louis Segond 1910\nScore du jour :"},
 en:{subtitle:"CHRIST IS ALIVE",logout:"Logout",pts:"Points",quiz:"Quiz",jours:"Days",rang:"Rank",welcome:"Hello",verse_sub:"Let the Word dwell in you richly.",defi_title:"📅 Daily Challenge",quiz_title:"Bible Quiz",quiz_sub:"Mixed questions · +1/+2/+3 pts",quiz_lbl:"Play →",verse_title:"Verse of the Day",verse_sub2:"LS 1910 · Meditation",verse_lbl:"Read →",cls_title:"Leaderboard",cls_sub:"Challenge friends in real time",cls_lbl:"View →",tab_easy:"Beginner",tab_med:"Intermediate",tab_hard:"Advanced",rest:"remaining today",correct:"✅ Correct!",well_done:"Well done!",wrong:"❌ Wrong",good_ans:"Right answer:",next_q:"Next question →",quiz_done_title:"Today's quiz complete!",quiz_done_p:"You've used your <strong>20 questions</strong> for today.<br>Come back tomorrow!",new_q:"🔄 New questions tomorrow",cls_btn:"🏆 Leaderboard",score_lbl:"Score",cls_today:"Today's Leaderboard",cls_reset:"Top 10 · Resets at midnight every day",my_score:"📊 My score today",q_left:"Q left",no_players:"🙏 No players yet today.<br>Play the Quiz to appear here!",online:"Online · Real time",join:"Join the challenge",email_pw:"Email + Password",email_pw_sub:"Permanent account",name_only:"Just a name",name_only_sub:"Quick login, no password",prenom:"First name",email:"Email",pw:"Password",ville:"City",start:"Start →",already:"Already have an account?",signin:"Sign in",no_account:"No account yet?",register:"Sign up",err_fields:"Please fill all fields",err_login:"Wrong email or password",loading:"Loading...",ls:"📖 Louis Segond 1910",exceptional:"Exceptional! You know God's Word perfectly!",great:"Great! You know your Bible well. Keep going!",good:"Good effort! Read your Bible every day to improve!",keep:"Don't give up! God's Word is a treasure.",share_txt:"✝️ Bible Quiz C.E.V\nLouis Segond 1910\nToday's score:"}};
 function t(k){return(T[S.lang]||T.fr)[k]||k;}
+// Échappe le HTML — indispensable partout où un prénom/pseudo/nom de groupe (texte libre
+// saisi par un utilisateur) est affiché, pour empêcher l'injection de code (XSS stocké).
+function esc(s){
+  if(s===undefined||s===null)return"";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
 function setLang(lang,btn){S.lang=lang;document.querySelectorAll(".lang-btn").forEach(function(b){b.classList.remove("active");});if(btn)btn.classList.add("active");applyLangUI();}
 function applyLangUI(){var ids={"h-sub":"subtitle","h-logout":"logout","sl-pts":"pts","sl-quiz":"quiz","sl-streak":"jours","sl-rank":"rang","home-sub":"verse_sub","dc-title":"defi_title","mc-quiz-title":"quiz_title","mc-quiz-sub":"quiz_sub","mc-quiz-lbl":"quiz_lbl","mc-verse-title":"verse_title","mc-verse-lbl":"verse_lbl","mc-cls-title":"cls_title","mc-cls-sub":"cls_sub","mc-cls-lbl":"cls_lbl","tab-easy":"tab_easy","tab-med":"tab_med","tab-hard":"tab_hard","nav-home-lbl":"welcome","nav-quiz-lbl":"quiz_title","nav-verset-lbl":"verse_title","nav-cls-lbl":"cls_title","opt-email-lbl":"email_pw","opt-email-sub":"email_pw_sub","opt-name-lbl":"name_only","opt-name-sub":"name_only_sub","lbl-prenom":"prenom","lbl-email":"email","lbl-pw":"pw","lbl-ville":"ville","lbl-prenom2":"prenom","lbl-ville2":"ville","abtn":"start","ac-title":"join","ql-rest":"rest","mc-verse-sub":"verse_sub2","verse-screen-title":"verse_title","cls-screen-title":"cls_title","quiz-screen-title":"quiz_title"};for(var id in ids){var el=document.getElementById(id);if(el)el.textContent=t(ids[id]);}var sw=document.getElementById("aswitch");if(sw)sw.innerHTML=t(S.mode==="reg"?"already":"no_account")+' <span onclick="toggleLogin()">'+t(S.mode==="reg"?"signin":"register")+"</span>";
   var en=(S.lang==="en");
@@ -1259,14 +1326,21 @@ function showFeedbackSuggestion(){
 
 var OS_APP_ID="d2f59331-4855-48b6-9c39-e236ebe11ce0";
 
-async function notifyAllPlayers(roomCode,maxPlayers){
+async function notifyAllPlayers(roomCode,maxPlayers,targetUserIds){
+  // Sans destinataires précis (challenge classique par code, partagé manuellement par
+  // l'hôte), on n'envoie plus de notification à tout le monde — voir diagnostic du
+  // 21/07 : ça revenait à spammer chaque utilisateur de l'app à chaque création de salle.
+  if(!targetUserIds||targetUserIds.length===0){
+    console.log("notifyAllPlayers: pas de liste de destinataires, notification ignorée (challenge par code libre)");
+    return;
+  }
   try{
     await fetch("https://xqcaiqnivxhgcxuxgqqy.supabase.co/functions/v1/send-challenge-notif",{
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+S.token,"apikey":SB_KEY},
-      body:JSON.stringify({code:roomCode,host_name:S.user.pseudo||S.user.prenom,max_players:maxPlayers,lang:S.lang})
+      body:JSON.stringify({code:roomCode,host_name:S.user.pseudo||S.user.prenom,max_players:maxPlayers,lang:S.lang,target_user_ids:targetUserIds})
     });
-    console.log("Challenge notification sent via OneSignal");
+    console.log("Challenge notification sent via OneSignal to",targetUserIds.length,"members");
   }catch(e){console.log("notifyAllPlayers err",e);}
 }
 
@@ -2004,8 +2078,8 @@ async function renderCls(){
       var idx=podOrders[pi];if(idx>=list.length)continue;
       var pp=list[idx];var init=((pp.pseudo||pp.prenom)?((pp.pseudo||pp.prenom)[0]):"?").toUpperCase();
       h+='<div class="pi '+podCls[pi]+'"><span class="prk">'+podRnks[idx]+'</span>';
-      h+='<div class="pav">'+init+'</div>';
-      h+='<div class="pnm">'+(pp.pseudo||pp.prenom||"?")+'</div>';
+      h+='<div class="pav">'+esc(init)+'</div>';
+      h+='<div class="pnm">'+esc(pp.pseudo||pp.prenom||"?")+'</div>';
       h+='<div class="psc">'+pp.score+' pts</div>';
       h+='<div class="pbl"></div></div>';
     }
@@ -2017,9 +2091,9 @@ async function renderCls(){
     var row=list[i],isMe=(row.user_id===uid);
     var init2=((row.pseudo||row.prenom)?(row.pseudo||row.prenom)[0]:"?").toUpperCase();
     h+='<div class="rr'+(isMe?" me":"")+'"><div class="rn">'+(i+1)+'</div>';
-    h+='<div class="rav">'+init2+'</div>';
-    h+='<div class="rin"><div class="rnm">'+(isMe?"⭐ ":"")+(row.pseudo||row.prenom||"?")+'</div>';
-    h+='<div class="rvi">📍 '+(row.ville||"—")+'</div></div>';
+    h+='<div class="rav">'+esc(init2)+'</div>';
+    h+='<div class="rin"><div class="rnm">'+(isMe?"⭐ ":"")+esc(row.pseudo||row.prenom||"?")+'</div>';
+    h+='<div class="rvi">📍 '+esc(row.ville||"—")+'</div></div>';
     h+='<div class="rsc">'+row.score+' pts</div></div>';
   }
   h+='</div>';
@@ -2203,13 +2277,38 @@ function goTo(s){
   var n=document.getElementById("nav-"+s);if(n)n.classList.add("active");
   // Arrêter l'audio si on quitte le quiz
   if(s!=="quiz")stopSpeak();
+  // Couper les minuteurs du mode Bot / Challenge en arrière-plan quand on quitte cet écran —
+  // sinon le bot continuait de jouer tout seul et le sondage réseau tournait indéfiniment
+  // même après être parti sur un autre onglet.
+  if(s!=="defi"){
+    stopAllDefiTimers();
+  }
   if(s==="quiz")renderQuiz();
   if(s==="verset")renderVerset();
   if(s==="classement")renderCls();
-  if(s==="defi")renderDefi();
+  if(s==="defi"){
+    renderDefi();
+    // Reprendre le sondage réseau si on revient sur un challenge multijoueur en cours
+    if(DEFI.room&&(DEFI.room.status==="waiting"||DEFI.room.status==="playing")){
+      subscribeRoom(DEFI.room.id);
+    }
+    // Relancer le round en cours si on revient sur une partie contre l'ordinateur
+    if(BOT.active&&!BOT.finished){
+      startBotQuestionRound();
+    }
+  }
   if(s==="bible")renderBible();
   // Sauvegarder l'écran actif
   try{localStorage.setItem("cev_screen",s);}catch(e){}
+}
+
+function stopAllDefiTimers(){
+  if(BOT.countdown){clearInterval(BOT.countdown);BOT.countdown=null;}
+  if(BOT.botTimeout){clearTimeout(BOT.botTimeout);BOT.botTimeout=null;}
+  if(BOT.nextTimeout){clearTimeout(BOT.nextTimeout);BOT.nextTimeout=null;}
+  if(DEFI.timer){clearInterval(DEFI.timer);DEFI.timer=null;}
+  if(DEFI.countdown){clearInterval(DEFI.countdown);DEFI.countdown=null;}
+  if(DEFI.pollInterval){clearInterval(DEFI.pollInterval);DEFI.pollInterval=null;}
 }
 
 function initApp(){
@@ -2551,7 +2650,7 @@ function renderGroupHome(){
   var g=GROUP.current;
   h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
   h+='<div style="font-size:34px;margin-bottom:6px">👨‍👩‍👧‍👦</div>';
-  h+='<h2 style="font-family:Playfair Display,serif;font-size:18px;color:#fff;margin-bottom:5px">'+g.nom+'</h2>';
+  h+='<h2 style="font-family:Playfair Display,serif;font-size:18px;color:#fff;margin-bottom:5px">'+esc(g.nom)+'</h2>';
   h+='<div style="font-size:11px;color:rgba(255,255,255,.85);margin-bottom:8px">'+GROUP.members.length+' '+(lbl?"membre(s)":"member(s)")+'</div>';
   h+='<div style="font-size:11px;font-weight:800;background:rgba(255,255,255,.2);display:inline-block;padding:5px 14px;border-radius:12px;letter-spacing:2px">'+g.code+'</div>';
   h+='<div style="font-size:9px;color:rgba(255,255,255,.7);margin-top:5px">'+(lbl?"Code à partager pour inviter":"Share this code to invite")+'</div>';
@@ -2575,7 +2674,7 @@ function renderGroupHome(){
   h+='<div class="defi-card">';
   h+='<h3 style="font-size:12px;font-weight:800;color:var(--purple);margin-bottom:10px">👥 '+(lbl?"Membres":"Members")+'</h3>';
   for(var i=0;i<GROUP.members.length;i++){
-    h+='<div style="padding:6px 0;font-size:13px;color:var(--dark);border-bottom:1px solid #F3F4F6">'+(i+1)+'. '+(GROUP.members[i].prenom||"?")+'</div>';
+    h+='<div style="padding:6px 0;font-size:13px;color:var(--dark);border-bottom:1px solid #F3F4F6">'+(i+1)+'. '+esc(GROUP.members[i].prenom||"?")+'</div>';
   }
   h+='</div>';
 
@@ -2587,47 +2686,48 @@ function renderGroupHome(){
 }
 
 async function createGroup(){
-  if(!S.user||!S.token){alert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
+  if(!S.user||!S.token){showAlert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
   var inp=document.getElementById("grp-name-inp");
   var nom=inp?inp.value.trim():"";
-  if(!nom){alert(S.lang==="fr"?"Donne un nom à ton groupe":"Give your group a name");return;}
+  if(!nom){showAlert(S.lang==="fr"?"Donne un nom à ton groupe":"Give your group a name");return;}
   try{
     var code=genGroupCode();
     var pseudo=S.user.pseudo||S.user.prenom;
     var r=await sbPost("cev_groups",{nom:nom,code:code,createur_id:S.user.id});
-    if(!r.ok){alert((S.lang==="fr"?"Erreur création groupe ":"Group creation error ")+r.status);return;}
+    if(!r.ok){showAlert((S.lang==="fr"?"Erreur création groupe ":"Group creation error ")+r.status);return;}
     var group=Array.isArray(r.data)?r.data[0]:r.data;
-    if(!group||!group.id){alert(S.lang==="fr"?"Erreur création groupe":"Group creation failed");return;}
+    if(!group||!group.id){showAlert(S.lang==="fr"?"Erreur création groupe":"Group creation failed");return;}
     await sbPost("cev_group_members",{group_id:group.id,user_id:S.user.id,prenom:pseudo});
     openGroupHome();
-  }catch(e){alert((S.lang==="fr"?"Erreur réseau: ":"Network error: ")+e.message);}
+  }catch(e){showAlert((S.lang==="fr"?"Erreur réseau: ":"Network error: ")+e.message);}
 }
 
 async function joinGroupByCode(){
-  if(!S.user||!S.token){alert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
+  if(!S.user||!S.token){showAlert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
   var inp=document.getElementById("grp-code-inp");
   var code=inp?inp.value.trim().toUpperCase():"";
-  if(!code){alert(S.lang==="fr"?"Entre un code de groupe":"Enter a group code");return;}
+  if(!code){showAlert(S.lang==="fr"?"Entre un code de groupe":"Enter a group code");return;}
   try{
     var gr=await sbGet("cev_groups?code=eq."+code+"&limit=1");
-    if(!gr.ok||!gr.data||!gr.data[0]){alert(S.lang==="fr"?"Aucun groupe avec ce code":"No group found with this code");return;}
+    if(!gr.ok||!gr.data||!gr.data[0]){showAlert(S.lang==="fr"?"Aucun groupe avec ce code":"No group found with this code");return;}
     var group=gr.data[0];
     var pseudo=S.user.pseudo||S.user.prenom;
     var r=await sbPost("cev_group_members",{group_id:group.id,user_id:S.user.id,prenom:pseudo},"resolution=ignore-duplicates");
-    if(!r.ok){alert((S.lang==="fr"?"Erreur pour rejoindre ":"Error joining ")+r.status);return;}
+    if(!r.ok){showAlert((S.lang==="fr"?"Erreur pour rejoindre ":"Error joining ")+r.status);return;}
     openGroupHome();
-  }catch(e){alert((S.lang==="fr"?"Erreur réseau: ":"Network error: ")+e.message);}
+  }catch(e){showAlert((S.lang==="fr"?"Erreur réseau: ":"Network error: ")+e.message);}
 }
 
-async function leaveGroupConfirm(){
+function leaveGroupConfirm(){
   var lbl=(S.lang==="fr");
-  if(!confirm(lbl?"Quitter ce groupe ?":"Leave this group?"))return;
-  if(!GROUP.current||!S.user)return;
-  try{
-    await sbFetchAuth(SB_URL+"/rest/v1/cev_group_members?group_id=eq."+GROUP.current.id+"&user_id=eq."+S.user.id,{method:"DELETE"});
-  }catch(e){console.log("leaveGroup err",e);}
-  GROUP.current=null;GROUP.members=[];
-  openGroupHome();
+  showConfirm(lbl?"Quitter ce groupe ?":"Leave this group?",async function(){
+    if(!GROUP.current||!S.user)return;
+    try{
+      await sbFetchAuth(SB_URL+"/rest/v1/cev_group_members?group_id=eq."+GROUP.current.id+"&user_id=eq."+S.user.id,{method:"DELETE"});
+    }catch(e){console.log("leaveGroup err",e);}
+    GROUP.current=null;GROUP.members=[];
+    openGroupHome();
+  });
 }
 
 async function loadGroupLeaderboard(groupId){
@@ -2644,7 +2744,7 @@ async function loadGroupLeaderboard(groupId){
     var h="";
     for(var i=0;i<rows.length;i++){
       h+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F3F4F6">';
-      h+='<span style="font-weight:700;color:var(--dark)">'+(i+1)+'. '+(rows[i].prenom||"?")+'</span>';
+      h+='<span style="font-weight:700;color:var(--dark)">'+(i+1)+'. '+esc(rows[i].prenom||"?")+'</span>';
       h+='<span style="font-weight:800;color:var(--purple)">'+rows[i].score+' pts</span>';
       h+='</div>';
     }
@@ -2655,12 +2755,14 @@ async function loadGroupLeaderboard(groupId){
 function challengeMyGroup(){
   if(!GROUP.current||GROUP.members.length===0)return;
   if(getDefiUsed()>=DEFI_MAX_PER_DAY){
-    alert(S.lang==="fr"?"Limite de 10 challenges atteinte aujourd'hui !":"10 challenge limit reached today!");
+    showAlert(S.lang==="fr"?"Limite de 10 challenges atteinte aujourd'hui !":"10 challenge limit reached today!");
     return;
   }
   // Dimensionne la salle au nombre de membres du groupe (min 2, max 12) puis réutilise le moteur de challenge existant
   DEFI_SIZE=Math.max(2,Math.min(12,GROUP.members.length));
-  createRoom();
+  // Ne notifie que les membres du groupe (pas tout le monde) — voir notifyAllPlayers
+  var targetIds=GROUP.members.map(function(m){return m.user_id;}).filter(function(id){return id!==S.user.id;});
+  createRoom(targetIds);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2674,22 +2776,45 @@ function addDays(dateStr,n){
 
 function promptGroupDuel(){
   var lbl=(S.lang==="fr");
-  var code=prompt(lbl?"Code du groupe à défier :":"Code of the group to challenge:");
-  if(!code)return;
-  code=code.trim().toUpperCase();
-  if(code===GROUP.current.code){alert(lbl?"Tu ne peux pas défier ton propre groupe !":"You can't challenge your own group!");return;}
-  var daysStr=prompt(lbl?"Durée du duel en jours (1, 3 ou 7) :":"Duel duration in days (1, 3 or 7):","3");
-  var days=parseInt(daysStr);
-  if(!days||[1,3,7].indexOf(days)===-1){alert(lbl?"Choisis 1, 3 ou 7 jours":"Choose 1, 3 or 7 days");return;}
+  var body='<div style="margin-bottom:12px">'
+    +'<label style="font-size:11px;font-weight:800;color:#7C3AED">'+(lbl?"Code du groupe à défier":"Code of the group to challenge")+'</label>'
+    +'<input type="text" id="gd-code-inp" placeholder="ABC123" maxlength="6" style="width:100%;padding:10px;margin-top:6px;border:2px solid #E5E7EB;border-radius:10px;font-family:Nunito,sans-serif;font-size:13px;text-transform:uppercase;box-sizing:border-box">'
+    +'</div>'
+    +'<div>'
+    +'<label style="font-size:11px;font-weight:800;color:#7C3AED">'+(lbl?"Durée du duel":"Duel duration")+'</label>'
+    +'<select id="gd-days-sel" style="width:100%;padding:10px;margin-top:6px;border:2px solid #E5E7EB;border-radius:10px;font-family:Nunito,sans-serif;font-size:13px;box-sizing:border-box">'
+    +'<option value="1">1 '+(lbl?"jour":"day")+'</option>'
+    +'<option value="3" selected>3 '+(lbl?"jours":"days")+'</option>'
+    +'<option value="7">7 '+(lbl?"jours":"days")+'</option>'
+    +'</select></div>';
+  showModal({
+    title:(lbl?"⚔️ Défier un autre groupe":"⚔️ Challenge another group"),
+    body:body,
+    buttons:[
+      {label:lbl?"Annuler":"Cancel",primary:false,onClick:closeModal},
+      {label:lbl?"Défier":"Challenge",primary:true,onClick:submitGroupDuelForm}
+    ]
+  });
+}
+
+function submitGroupDuelForm(){
+  var lbl=(S.lang==="fr");
+  var codeInp=document.getElementById("gd-code-inp");
+  var daysSel=document.getElementById("gd-days-sel");
+  var code=codeInp?codeInp.value.trim().toUpperCase():"";
+  var days=daysSel?parseInt(daysSel.value):3;
+  if(!code){showAlert(lbl?"Entre un code de groupe":"Enter a group code");return;}
+  if(!GROUP.current||code===GROUP.current.code){closeModal();showAlert(lbl?"Tu ne peux pas défier ton propre groupe !":"You can't challenge your own group!");return;}
+  closeModal();
   startGroupDuel(code,days);
 }
 
 async function startGroupDuel(opponentCode,days){
   var lbl=(S.lang==="fr");
-  if(!S.user||!S.token){alert(lbl?"Connecte-toi d'abord":"Please log in first");return;}
+  if(!S.user||!S.token){showAlert(lbl?"Connecte-toi d'abord":"Please log in first");return;}
   try{
     var gr=await sbGet("cev_groups?code=eq."+opponentCode+"&limit=1");
-    if(!gr.ok||!gr.data||!gr.data[0]){alert(lbl?"Aucun groupe avec ce code":"No group found with this code");return;}
+    if(!gr.ok||!gr.data||!gr.data[0]){showAlert(lbl?"Aucun groupe avec ce code":"No group found with this code");return;}
     var opponent=gr.data[0];
     var today=todayStr();
     var dateFin=addDays(today,days-1);
@@ -2698,9 +2823,9 @@ async function startGroupDuel(opponentCode,days){
       group_a_nom:GROUP.current.nom,group_b_nom:opponent.nom,
       statut:"active",date_debut:today,date_fin:dateFin,created_by:S.user.id
     });
-    if(!r.ok){alert((lbl?"Erreur création duel ":"Duel creation error ")+r.status);return;}
+    if(!r.ok){showAlert((lbl?"Erreur création duel ":"Duel creation error ")+r.status);return;}
     openGroupHome();
-  }catch(e){alert((lbl?"Erreur réseau: ":"Network error: ")+e.message);}
+  }catch(e){showAlert((lbl?"Erreur réseau: ":"Network error: ")+e.message);}
 }
 
 async function loadGroupDuel(groupId){
@@ -2764,8 +2889,8 @@ async function renderGroupDuelCard(duel){
   }
 
   h+='<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:800;margin-bottom:4px">';
-  h+='<span style="color:var(--purple)">'+myName+' ('+myScore+')</span>';
-  h+='<span style="color:var(--red)">'+theirName+' ('+theirScore+')</span>';
+  h+='<span style="color:var(--purple)">'+esc(myName)+' ('+myScore+')</span>';
+  h+='<span style="color:var(--red)">'+esc(theirName)+' ('+theirScore+')</span>';
   h+='</div>';
   h+='<div style="height:14px;background:#FEE2E2;border-radius:8px;overflow:hidden;display:flex">';
   h+='<div style="height:100%;width:'+(isMineA?pctA:100-pctA)+'%;background:var(--purple)"></div>';
@@ -2891,11 +3016,11 @@ function updateSizeDisplay(v){
   if(x)x.textContent=DEFI_SIZE*4;
 }
 
-async function createRoom(){
-  if(!S.user){alert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
-  if(!S.token){alert(S.lang==="fr"?"Session expirée, reconnecte-toi":"Session expired, please log in again");return;}
+async function createRoom(targetUserIds){
+  if(!S.user){showAlert(S.lang==="fr"?"Connecte-toi d'abord":"Please log in first");return;}
+  if(!S.token){showAlert(S.lang==="fr"?"Session expirée, reconnecte-toi":"Session expired, please log in again");return;}
   if(getDefiUsed()>=DEFI_MAX_PER_DAY){
-    alert(S.lang==="fr"?"Limite de 10 challenges atteinte aujourd'hui !":"10 challenge limit reached today!");
+    showAlert(S.lang==="fr"?"Limite de 10 challenges atteinte aujourd'hui !":"10 challenge limit reached today!");
     return;
   }
   var btn=document.querySelector(".defi-btn");
@@ -2923,14 +3048,14 @@ async function createRoom(){
         r=await sbPost("cev_rooms",{code:code,host_id:S.user.id,host_name:pseudo,status:"waiting",max_players:DEFI_SIZE,current_q:0,total_q:10,q_data:qData});
       }
       if(!r.ok){
-        alert((S.lang==="fr"?"Erreur création salle ":"Room error ")+r.status);
+        showAlert((S.lang==="fr"?"Erreur création salle ":"Room error ")+r.status);
         if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
         return;
       }
     }
     var room=Array.isArray(r.data)?r.data[0]:r.data;
     if(!room||!room.id){
-      alert(S.lang==="fr"?"Erreur création salle. Réessaie.":"Room creation failed. Try again.");
+      showAlert(S.lang==="fr"?"Erreur création salle. Réessaie.":"Room creation failed. Try again.");
       if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
       return;
     }
@@ -2941,11 +3066,11 @@ async function createRoom(){
     await loadPlayers(); // Charger les joueurs immédiatement
     saveDefiSession();
     subscribeRoom(room.id);
-    notifyAllPlayers(code,DEFI_SIZE);
+    notifyAllPlayers(code,DEFI_SIZE,targetUserIds);
     renderDefiWaiting();
   }catch(e){
     console.log("createRoom exception:",e);
-    alert(S.lang==="fr"?"Erreur réseau: "+e.message:"Network error: "+e.message);
+    showAlert(S.lang==="fr"?"Erreur réseau: "+e.message:"Network error: "+e.message);
     if(btn){btn.disabled=false;btn.textContent=S.lang==="fr"?"+ Créer le challenge":"+ Create challenge";}
   }
 }
@@ -2954,22 +3079,22 @@ async function joinRoom(){
   var codeEl=document.getElementById("room-code-inp");
   var codeVal=codeEl?codeEl.value.trim():"";
   if(!codeVal||codeVal.length<4){
-    alert(S.lang==="fr"?"Entrez le code à 4 chiffres":"Enter the 4-digit code");
+    showAlert(S.lang==="fr"?"Entrez le code à 4 chiffres":"Enter the 4-digit code");
     return;
   }
   if(getDefiUsed()>=DEFI_MAX_PER_DAY){
-    alert(S.lang==="fr"?"Limite de 10 challenges atteinte !":"10 challenge limit reached!");
+    showAlert(S.lang==="fr"?"Limite de 10 challenges atteinte !":"10 challenge limit reached!");
     return;
   }
   if(!S.token){
-    alert(S.lang==="fr"?"Connecte-toi d'abord !":"Please log in first!");
+    showAlert(S.lang==="fr"?"Connecte-toi d'abord !":"Please log in first!");
     return;
   }
 
   // Chercher la salle
   var rRoom=await sbGet("cev_rooms?code=eq."+codeVal+"&status=neq.finished&order=created_at.desc&limit=1");
   if(!rRoom.ok||!rRoom.data||!rRoom.data[0]){
-    alert(S.lang==="fr"?"Code introuvable ou challenge terminé":"Code not found or challenge ended");
+    showAlert(S.lang==="fr"?"Code introuvable ou challenge terminé":"Code not found or challenge ended");
     return;
   }
   var room=rRoom.data[0];
@@ -2979,7 +3104,7 @@ async function joinRoom(){
   var players=rPlayers.ok?rPlayers.data:[];
   var alreadyIn=players.find(function(p){return p.user_id===S.user.id;});
   if(!alreadyIn&&players.length>=room.max_players){
-    alert(S.lang==="fr"?"La salle est complète !":"The room is full!");
+    showAlert(S.lang==="fr"?"La salle est complète !":"The room is full!");
     return;
   }
 
@@ -3158,8 +3283,8 @@ function renderDefiWaiting(){
     var p=DEFI.players[i];
     var isMe=p.user_id===S.user.id;
     var isH=p.user_id===DEFI.room.host_id;
-    h+='<div class="defi-player'+(isH?" host":"")+(p.ready?" ready":"")+'"><div class="defi-av">'+(p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase()+'</div>';
-    h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+(isH?' <span style="font-size:9px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;font-weight:700">HOST</span>':'');
+    h+='<div class="defi-player'+(isH?" host":"")+(p.ready?" ready":"")+'"><div class="defi-av">'+esc((p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase())+'</div>';
+    h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+esc(p.pseudo||p.prenom)+(isH?' <span style="font-size:9px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;font-weight:700">HOST</span>':'');
     h+='</div><span style="font-size:14px">'+(p.ready?"✅":"⏳")+'</span></div>';
   }
   if(DEFI.players.length<2){
@@ -3234,11 +3359,11 @@ async function startDefi(){
       startQuestionTimer();
     } else {
       if(btn){btn.textContent="🚀 "+(S.lang==="fr"?"Démarrer le défi !":"Start the challenge!");btn.disabled=false;}
-      alert((S.lang==="fr"?"Erreur démarrage: ":"Start error: ")+r.status);
+      showAlert((S.lang==="fr"?"Erreur démarrage: ":"Start error: ")+r.status);
     }
   }catch(e){
     if(btn){btn.disabled=false;}
-    alert("Erreur: "+e.message);
+    showAlert("Erreur: "+e.message);
   }
 }
 
@@ -3434,8 +3559,8 @@ function renderDefiPlaying(){
     var pct=Math.min(100,Math.round((p.score/DEFI_WIN_SCORE)*100));
     h+='<div style="margin-bottom:8px">';
     h+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">';
-    h+='<div class="defi-av" style="width:26px;height:26px;font-size:10px">'+(p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase()+'</div>';
-    h+='<span style="font-weight:700;font-size:11px;flex:1;color:var(--dark)">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+'</span>';
+    h+='<div class="defi-av" style="width:26px;height:26px;font-size:10px">'+esc((p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase())+'</div>';
+    h+='<span style="font-weight:700;font-size:11px;flex:1;color:var(--dark)">'+(isMe?"⭐ ":"")+esc(p.pseudo||p.prenom)+'</span>';
     h+='<span id="score-lbl-'+p.user_id+'" style="font-weight:800;font-size:11px;color:var(--purple)">'+p.score+'/'+DEFI_WIN_SCORE+'</span>';
     h+='</div>';
     h+='<div style="height:6px;background:#E9D5FF;border-radius:4px;overflow:hidden"><div id="score-bar-'+p.user_id+'" style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--purple),var(--blue));border-radius:4px;transition:width .4s"></div></div>';
@@ -3503,7 +3628,7 @@ function renderDefiResults(){
   h+='</div>';
   if(winner){
     h+='<div style="font-size:13px;opacity:.9;margin-top:4px">';
-    h+=(lbl?"Vainqueur : ":"Winner: ")+(winner.pseudo||winner.prenom)+' · '+winner.score+' pts';
+    h+=(lbl?"Vainqueur : ":"Winner: ")+esc(winner.pseudo||winner.prenom)+' · '+winner.score+' pts';
     h+='</div>';
   }
   if(isWinner){
@@ -3523,7 +3648,7 @@ function renderDefiResults(){
     var p=sorted[i];var isMe=p.user_id===S.user.id;
     var isW=p.user_id===(winner&&winner.user_id);
     h+='<div class="defi-player'+(isW?" host":"")+'"><div class="defi-av">'+(medals[i]||String(i+1))+'</div>';
-    h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+(p.pseudo||p.prenom)+(isW?' <span class="first-badge">👑 '+(lbl?"GAGNANT":"WINNER")+'</span>':'')+'</div>';
+    h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+esc(p.pseudo||p.prenom)+(isW?' <span class="first-badge">👑 '+(lbl?"GAGNANT":"WINNER")+'</span>':'')+'</div>';
     h+='<div class="defi-pscore">'+p.score+' pts</div></div>';
   }
   h+='</div>';
@@ -3934,6 +4059,14 @@ function getBibleRead(){try{var r=localStorage.getItem(getBibleKey());return r?J
 function saveBibleRead(r){try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}}
 function getBibleStartKey(){return"cev_bible_start_"+(S.user?S.user.id:"anon");}
 function getBiblePlanKey(){return"cev_bible_plan_"+(S.user?S.user.id:"anon");}
+function confirmResetBiblePlan(){
+  var en=(S.lang==="en");
+  showConfirm(en?"Reset plan?":"Recommencer ?",function(){
+    localStorage.removeItem(getBibleStartKey());
+    localStorage.removeItem(getBiblePlanKey());
+    renderBible();
+  });
+}
 function getBiblePlan(){try{return localStorage.getItem(getBiblePlanKey())||"365";}catch(e){return"365";}}
 function setBiblePlan(p){try{localStorage.setItem(getBiblePlanKey(),p);}catch(e){}}
 function getBibleStartDay(){try{var s=localStorage.getItem(getBibleStartKey());return s?parseInt(s):null;}catch(e){return null;}}
@@ -4070,7 +4203,7 @@ function renderBiblePlan(c,en){
     +'<div style="height:100%;width:'+pct+'%;background:'+status.color+';border-radius:4px;transition:width .6s"></div></div>'
     +'<div style="display:flex;justify-content:space-between;margin-top:4px">'
     +'<span style="font-size:9px;color:'+status.color+'">'+done+'/'+total+' '+(en?"chapters":"chapitres")+'</span>'
-    +'<button onclick="if(confirm(\''+(en?"Reset plan?":"Recommencer ?")+'\''+')){localStorage.removeItem(getBibleStartKey());localStorage.removeItem(getBiblePlanKey());renderBible();}" style="background:none;border:none;font-size:9px;color:#9CA3AF;cursor:pointer;font-family:Nunito">'+(en?"Change":"Changer")+'</button>'
+    +'<button onclick="confirmResetBiblePlan()" style="background:none;border:none;font-size:9px;color:#9CA3AF;cursor:pointer;font-family:Nunito">'+(en?"Change":"Changer")+'</button>'
     +'</div></div>';
 
   function nextChap(all,r){for(var i=0;i<all.length;i++){if(r.indexOf(all[i])===-1)return all[i];}return null;}
@@ -4731,11 +4864,29 @@ async function handleOAuthCallback(){
   }catch(e){console.log("OAuth callback err",e);return false;}
 }
 
+// Lit le paramètre ?join=CODE dans l'URL — posé par sw.js quand l'utilisateur ouvre l'app
+// en cliquant sur une notification de challenge alors qu'elle était complètement fermée.
+function checkJoinFromUrl(){
+  try{
+    var params=new URLSearchParams(location.search);
+    var code=params.get("join");
+    if(!code)return;
+    history.replaceState(null,"",location.pathname); // Nettoie l'URL, évite de re-déclencher au refresh
+    setTimeout(function(){
+      goTo("defi");
+      setTimeout(function(){
+        var inp=document.getElementById("room-code-inp");
+        if(inp){inp.value=code;joinRoom();}
+      },500);
+    },1000);
+  }catch(e){console.log("checkJoinFromUrl err",e);}
+}
+
 window.onload=async function(){
   // Retour d'une connexion Google/Facebook : traite le token et saute la restauration de session normale
   if(await handleOAuthCallback())return;
   // Enregistrer le Service Worker uniquement sur le vrai domaine Vercel
-  if('serviceWorker' in navigator && location.hostname.includes('vercel.app') || location.hostname.includes('kingdom-journey')){
+  if('serviceWorker' in navigator && (location.hostname.includes('vercel.app') || location.hostname.includes('kingdom-journey'))){
     navigator.serviceWorker.register('/sw.js').catch(function(){});
   }
   // Écouter les messages du Service Worker
@@ -4774,6 +4925,9 @@ window.onload=async function(){
         // locale date d'un autre jour (le score ne doit pas être reporté d'un jour sur l'autre)
         // ou d'un autre appareil dont la progression n'était pas encore reflétée ici.
         syncTodayScoreFromServer();
+        // Rejoindre automatiquement un challenge si l'app a été ouverte depuis une notification
+        // (cas où l'app était complètement fermée — le service worker ouvre alors /?join=CODE)
+        checkJoinFromUrl();
         return;
       }
     }
