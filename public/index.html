@@ -1599,15 +1599,24 @@ function launchConfetti(){
 // ── QUIZ LOGIC (questions mélangées) ──────────────────────
 function shuffle(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=b[i];b[i]=b[j];b[j]=tmp;}return b;}
 
+// Mélange les options d'une question pour que la bonne réponse ne soit pas toujours en position A.
+function shuffleQuestionOpts(q){
+  var idx=[0,1,2,3];
+  for(var i=idx.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=idx[i];idx[i]=idx[j];idx[j]=tmp;}
+  var newOpts=idx.map(function(k){return q.opts[k];});
+  var newAns=idx.indexOf(q.ans);
+  return Object.assign({},q,{opts:newOpts,ans:newAns});
+}
+
 function getMixedQuestions(){
   if(getKidMode()){
     // Mode Enfant : uniquement des questions faciles
-    return shuffle(QS.easy).slice(0,20).map(function(q){return Object.assign({},q,{diff:"easy"});});
+    return shuffle(QS.easy).slice(0,20).map(function(q){return shuffleQuestionOpts(Object.assign({},q,{diff:"easy"}));});
   }
   // Mélange de 7 faciles, 7 moyennes, 6 difficiles = 20 questions
-  var easy=shuffle(QS.easy).slice(0,7).map(function(q){return Object.assign({},q,{diff:"easy"});});
-  var med=shuffle(QS.medium).slice(0,7).map(function(q){return Object.assign({},q,{diff:"medium"});});
-  var hard=shuffle(QS.hard).slice(0,6).map(function(q){return Object.assign({},q,{diff:"hard"});});
+  var easy=shuffle(QS.easy).slice(0,7).map(function(q){return shuffleQuestionOpts(Object.assign({},q,{diff:"easy"}));});
+  var med=shuffle(QS.medium).slice(0,7).map(function(q){return shuffleQuestionOpts(Object.assign({},q,{diff:"medium"}));});
+  var hard=shuffle(QS.hard).slice(0,6).map(function(q){return shuffleQuestionOpts(Object.assign({},q,{diff:"hard"}));});
   return shuffle(easy.concat(med).concat(hard));
 }
 
@@ -4492,7 +4501,7 @@ function getQuestionsForChapter(chapStr,count){
     var fillers=shuffleArr((QS.easy||[]).filter(function(q){return !used[q.q];}));
     pool=pool.concat(fillers);
   }
-  return pool.slice(0,count);
+  return pool.slice(0,count).map(shuffleQuestionOpts);
 }
 
 // Construit un pool de `count` questions pour l'examen d'un livre entier (n'importe quel chapitre du livre)
@@ -4511,7 +4520,7 @@ function getQuestionsForBook(book,count){
     var fillers=shuffleArr((QS.easy||[]).filter(function(q){return !used[q.q];}));
     bookQs=bookQs.concat(fillers);
   }
-  return bookQs.slice(0,count);
+  return bookQs.slice(0,count).map(shuffleQuestionOpts);
 }
 
 // Aplatit le plan de lecture (AT / Psaumes-Proverbes / NT) en listes ordonnées, une seule fois
