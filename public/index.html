@@ -4936,6 +4936,39 @@ function checkJoinFromUrl(){
   }catch(e){console.log("checkJoinFromUrl err",e);}
 }
 
+// Détecte les utilisateurs iPhone/iPad sur Safari qui n'ont pas encore installé
+// l'app, et affiche une bannière leur expliquant comment le faire (Safari ne
+// propose pas de bannière d'installation automatique comme Android/Chrome).
+var IOS_BANNER_KEY="cev_ios_banner_dismissed";
+function isIOSSafariNotInstalled(){
+  var ua=window.navigator.userAgent;
+  var isIOS=/iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  var isSafari=/Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  var isStandalone=window.navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches;
+  return isIOS && isSafari && !isStandalone;
+}
+function showIOSInstallBanner(){
+  try{ if(localStorage.getItem(IOS_BANNER_KEY)==="1")return; }catch(e){}
+  if(!isIOSSafariNotInstalled())return;
+  var fr=(typeof S!=="undefined"&&S.lang!=="en");
+  var div=document.createElement("div");
+  div.id="ios-install-banner";
+  div.style.cssText="position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#1F2937;color:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:14px;line-height:1.5;display:flex;align-items:center;gap:10px;";
+  div.innerHTML=
+    '<span style="font-size:22px">📲</span>'+
+    '<span style="flex:1">'+(fr
+      ?'Installe l\'app : appuie sur <b>Partager</b> <span style="opacity:.8">⬆️</span> puis <b>"Sur l\'écran d\'accueil"</b>.'
+      :'Install the app: tap <b>Share</b> <span style="opacity:.8">⬆️</span> then <b>"Add to Home Screen"</b>.')+
+    '</span>'+
+    '<button onclick="dismissIOSInstallBanner()" style="background:none;border:none;color:#fff;opacity:.7;font-size:20px;padding:4px 8px;cursor:pointer">×</button>';
+  document.body.appendChild(div);
+}
+function dismissIOSInstallBanner(){
+  try{ localStorage.setItem(IOS_BANNER_KEY,"1"); }catch(e){}
+  var el=document.getElementById("ios-install-banner");
+  if(el)el.remove();
+}
+
 window.onload=async function(){
   // Retour d'une connexion Google/Facebook : traite le token et saute la restauration de session normale
   if(await handleOAuthCallback())return;
@@ -4943,6 +4976,8 @@ window.onload=async function(){
   if('serviceWorker' in navigator && (location.hostname.includes('vercel.app') || location.hostname.includes('kingdom-journey'))){
     navigator.serviceWorker.register('/sw.js').catch(function(){});
   }
+  // Bannière d'installation pour les utilisateurs iPhone/iPad sur Safari
+  setTimeout(showIOSInstallBanner,1500);
   // Écouter les messages du Service Worker
   if(navigator.serviceWorker){
     navigator.serviceWorker.addEventListener("message",function(e){
