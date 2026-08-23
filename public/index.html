@@ -459,7 +459,7 @@ body.kid-mode #kid-toggle{background:#fff !important;color:var(--purple) !import
 
   <div class="scr active" id="home-screen">
     <div class="gr" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div><h2 id="home-welcome">Bonjour 👋</h2><p id="home-sub">Que la Parole habite en toi richement.</p></div>
+      <div><h2 id="home-welcome" style="display:inline-flex;align-items:center;gap:6px">Bonjour 👋<span onclick="openEditPseudo()" title="Modifier mon pseudo" style="cursor:pointer;font-size:14px;opacity:.85">✏️</span></h2><p id="home-sub">Que la Parole habite en toi richement.</p></div>
       <button id="share-card" onclick="shareApp()" title="Partager l'application · +15 XP" style="flex-shrink:0;width:42px;height:42px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--gold),var(--goldd));color:#fff;font-size:19px;cursor:pointer;box-shadow:0 3px 10px rgba(217,119,6,.35);display:flex;align-items:center;justify-content:center;position:relative">
         <span id="share-card-icon">🎁</span>
       </button>
@@ -613,6 +613,48 @@ async function sbPatch(path,body){
   });
   return{ok:r.ok,status:r.status};
 }
+
+// ── Modification du pseudo par l'utilisateur ─────────────────────
+function openEditPseudo(){
+  if(!S.user)return;
+  var fr=(S.lang!=="en");
+  var current=S.user.pseudo||S.user.prenom||"";
+  var val=prompt(fr?"Nouveau pseudo :":"New nickname:",current);
+  if(val===null)return; // annulé
+  val=val.trim();
+  if(!val){alert(fr?"Le pseudo ne peut pas être vide.":"Nickname cannot be empty.");return;}
+  if(val.length>30){alert(fr?"Le pseudo est trop long (30 caractères max).":"Nickname too long (30 characters max).");return;}
+  if(val===current)return; // rien à faire
+  saveNewPseudo(val);
+}
+
+async function saveNewPseudo(newPseudo){
+  if(!S.user)return;
+  var fr=(S.lang!=="en");
+  try{
+    // 1. Mettre à jour le profil principal
+    var r1=await sbPatch("cev_profiles?id=eq."+S.user.id,{pseudo:newPseudo,prenom:newPseudo});
+    if(!r1.ok){alert(fr?"Erreur lors de la mise à jour du profil.":"Error updating profile.");return;}
+    // 2. Mettre à jour l'historique des scores pour cohérence du classement
+    await sbPatch("cev_scores?user_id=eq."+S.user.id,{prenom:newPseudo});
+    // 3. Mettre à jour l'état local et la session
+    S.user.pseudo=newPseudo;
+    S.user.prenom=newPseudo;
+    try{
+      var sess=JSON.parse(localStorage.getItem("cev_session")||"{}");
+      sess.pseudo=newPseudo;
+      sess.prenom=newPseudo;
+      localStorage.setItem("cev_session",JSON.stringify(sess));
+    }catch(e){}
+    // 4. Rafraîchir l'affichage
+    var hw=document.getElementById("home-welcome");
+    if(hw)hw.innerHTML=t("welcome")+" "+newPseudo+' 👋<span onclick="openEditPseudo()" title="Modifier mon pseudo" style="cursor:pointer;font-size:14px;opacity:.85;margin-left:6px">✏️</span>';
+    alert(fr?"Pseudo mis à jour !":"Nickname updated!");
+  }catch(e){
+    alert(fr?"Erreur réseau, réessaie plus tard.":"Network error, try again later.");
+  }
+}
+
 // ── STATE ─────────────────────────────────────────────────
 var S={user:null,token:null,lang:"fr",mode:"reg",opt:"perm",score:0,qc:0,lvl:"easy",qi:0,qsc:0,qans:false,tq:{easy:[],medium:[],hard:[],mixed:[]}};
 function todayStr(){return new Date().toISOString().slice(0,10);}
@@ -2722,7 +2764,7 @@ function initApp(){
   var hvr=document.getElementById("hvr");if(hvr)hvr.textContent=v.ref+" · Louis Segond 1910";
   var hdt=document.getElementById("hdt");if(hdt)hdt.textContent=verseDefi;
   if(S.user){
-    var hw=document.getElementById("home-welcome");if(hw)hw.textContent=t("welcome")+" "+(S.user.pseudo||S.user.prenom)+" 👋";
+    var hw=document.getElementById("home-welcome");if(hw)hw.innerHTML=t("welcome")+" "+(S.user.pseudo||S.user.prenom)+' 👋<span onclick="openEditPseudo()" title="Modifier mon pseudo" style="cursor:pointer;font-size:14px;opacity:.85;margin-left:6px">✏️</span>';
     var ts=document.getElementById("ts");if(ts)ts.textContent="🏆 "+S.score+" pts";
     var ss=document.getElementById("ss");if(ss)ss.textContent=S.score;
     // Streak
