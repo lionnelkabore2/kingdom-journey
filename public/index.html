@@ -1231,9 +1231,9 @@ function loginNow(uid,prenom,ville,score,tok,pseudo){
   // écrasait le vrai score du jour déjà enregistré côté serveur avec cette valeur fausse.
   syncTodayScoreFromServer();
   // Arrière-plan : streak + XP (n'écrit plus le score — laissé à syncTodayScoreFromServer / au jeu réel)
-  setTimeout(function(){
+  setTimeout(async function(){
     try{
-      var streak=updateStreak();
+      var streak=await updateStreak();
       var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
       if(!localStorage.getItem(bonusKey)){
         addXP(10);localStorage.setItem(bonusKey,"1");
@@ -1264,8 +1264,10 @@ function loginSuccess(uid,prenom,ville,score,tok,pseudo){
   loginNow(uid,prenom,ville,score,tok,pseudo);
 }
 
-// ── STREAK (jours consécutifs) ─────────────────────────────
-// ── STREAK (jours consécutifs) ─────────────────────────────
+// ── STREAK (jours consécutifs) — synchronisé avec Supabase ──
+// Le streak est stocké côté serveur (cev_profiles.streak_count/streak_last)
+// pour survivre au changement d'appareil, à la réinstallation de l'app,
+// ou à l'effacement du cache local. Le localStorage sert de copie rapide/hors-ligne.
 function getStreakKey(){return"cev_streak_"+(S.user?S.user.id:"");}
 function getStreak(){
   try{
@@ -1273,16 +1275,46 @@ function getStreak(){
     return{count:d.count||0,last:d.last||""};
   }catch(e){return{count:0,last:""};}
 }
-function updateStreak(){
+function setStreakLocal(count,last){
+  try{localStorage.setItem(getStreakKey(),JSON.stringify({count:count,last:last}));}catch(e){}
+}
+
+// Calcule le nouveau streak à partir d'un dernier-jour connu, sans écrire nulle part.
+function computeNewStreak(lastKnown,countKnown){
   var today=todayStr();
-  var s=getStreak();
-  if(s.last===today)return s.count; // Déjà compté aujourd'hui
+  if(lastKnown===today)return{count:countKnown||0,changed:false};
   var yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
   var yStr=yesterday.toISOString().slice(0,10);
-  var newCount=(s.last===yStr)?s.count+1:1; // Consécutif ou reset à 1
-  try{localStorage.setItem(getStreakKey(),JSON.stringify({count:newCount,last:today}));}catch(e){}
-  return newCount;
+  var newCount=(lastKnown===yStr)?(countKnown||0)+1:1;
+  return{count:newCount,changed:true};
 }
+
+// Appelée au login : lit le streak serveur (source de vérité), le compare au
+// local, prend le plus à jour, calcule le nouveau streak et le réécrit partout.
+async function updateStreak(){
+  var today=todayStr();
+  var local=getStreak();
+  var serverCount=0, serverLast="";
+  try{
+    var r=await sbGet("cev_profiles?id=eq."+S.user.id+"&select=streak_count,streak_last");
+    if(r&&r.ok&&r.data&&r.data[0]){
+      serverCount=r.data[0].streak_count||0;
+      serverLast=r.data[0].streak_last||"";
+    }
+  }catch(e){}
+  // Source de vérité : la donnée la plus récente entre serveur et local
+  var lastKnown=local.last,countKnown=local.count;
+  if(serverLast&&(serverLast>local.last||!local.last)){
+    lastKnown=serverLast;countKnown=serverCount;
+  }
+  var res=computeNewStreak(lastKnown,countKnown);
+  setStreakLocal(res.count,today);
+  if(res.changed){
+    try{await sbPatch("cev_profiles?id=eq."+S.user.id,{streak_count:res.count,streak_last:today});}catch(e){}
+  }
+  return res.count;
+}
+
 
 
 // ── PUSH NOTIFICATIONS ─────────────────────────────────────
