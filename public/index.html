@@ -5365,10 +5365,11 @@ function checkNotifFromUrl(){
     history.replaceState(null,"",location.pathname); // Nettoie l'URL
     setTimeout(function(){
       if(notif==="verse"){
-        // Ouvre l'accueil (où le verset du jour est affiché) et propose direct le partage
-        goTo("accueil");
+        // Ouvre l'écran Verset du jour (où existent le canvas et l'aperçu de partage)
+        // et déclenche directement la génération de l'image de partage.
+        goTo("verset");
         setTimeout(function(){
-          if(typeof shareVerseLink==="function")shareVerseLink();
+          if(typeof shareVerseAsImage==="function")shareVerseAsImage();
         },700);
       } else if(notif==="play"){
         goTo("quiz");
