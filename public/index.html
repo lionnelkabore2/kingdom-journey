@@ -2436,6 +2436,9 @@ async function saveScore(){
 var CLS_PERIOD="day";
 
 async function fetchCls(period){
+  if(period==="all"){
+    return await sbGet("cev_leaderboard_alltime?order=score.desc&limit=50&select=user_id,prenom,ville,score");
+  }
   var today=todayStr();
   var d=new Date();
   var soy=new Date(d.getFullYear(),0,1);
@@ -2453,7 +2456,7 @@ async function renderCls(){
 
   // Onglets période
   var tabs='<div style="display:flex;gap:5px;margin-bottom:13px">';
-  var periods=[["day","📅 Jour"],["week","📆 Semaine"],["month","🗓 Mois"]];
+  var periods=[["day","📅 Jour"],["week","📆 Semaine"],["month","🗓 Mois"],["all","🏅 Toujours"]];
   for(var p=0;p<periods.length;p++){
     var pid=periods[p][0],plbl=periods[p][1];
     var active=CLS_PERIOD===pid?"background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border-color:var(--purple)":"background:#fff;color:var(--gray)";
@@ -2486,11 +2489,11 @@ async function renderCls(){
 
   var uid=S.user?S.user.id:null;
   var today=todayStr();
-  var periodLabel=CLS_PERIOD==="day"?new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long"}):CLS_PERIOD==="week"?"Semaine en cours":"Mois en cours";
+  var periodLabel=CLS_PERIOD==="day"?new Date().toLocaleDateString(S.lang==="fr"?"fr-FR":"en-US",{weekday:"long",day:"numeric",month:"long"}):CLS_PERIOD==="week"?"Semaine en cours":CLS_PERIOD==="month"?"Mois en cours":"Depuis le début";
 
   var h=tabs;
   h+='<div class="clh"><div style="font-size:28px;margin-bottom:6px">🏆</div>';
-  h+='<h2>'+(CLS_PERIOD==="day"?"Classement du Jour":CLS_PERIOD==="week"?"Classement de la Semaine":"Classement du Mois")+'</h2>';
+  h+='<h2>'+(CLS_PERIOD==="day"?"Classement du Jour":CLS_PERIOD==="week"?"Classement de la Semaine":CLS_PERIOD==="month"?"Classement du Mois":"Classement de Tous les Temps")+'</h2>';
   h+='<p style="color:rgba(255,255,255,.6);font-size:10px">'+periodLabel+'</p>';
   h+='<div class="online-badge"><span class="dot"></span>'+t("online")+'</div></div>';
 
