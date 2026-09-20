@@ -1405,20 +1405,17 @@ function showFeedbackSuggestion(){
 var OS_APP_ID="d2f59331-4855-48b6-9c39-e236ebe11ce0";
 
 async function notifyAllPlayers(roomCode,maxPlayers,targetUserIds){
-  // Sans destinataires précis (challenge classique par code, partagé manuellement par
-  // l'hôte), on n'envoie plus de notification à tout le monde — voir diagnostic du
-  // 21/07 : ça revenait à spammer chaque utilisateur de l'app à chaque création de salle.
-  if(!targetUserIds||targetUserIds.length===0){
-    console.log("notifyAllPlayers: pas de liste de destinataires, notification ignorée (challenge par code libre)");
-    return;
-  }
+  // Sans destinataires précis (challenge par code libre), on diffuse maintenant
+  // à tous les utilisateurs actifs (abonnés aux notifications) — demandé le 20/09,
+  // pour que n'importe qui puisse rejoindre un challenge ouvert sans lien partagé.
+  var hasTargets=targetUserIds&&targetUserIds.length>0;
   try{
     await fetch("https://xqcaiqnivxhgcxuxgqqy.supabase.co/functions/v1/send-challenge-notif",{
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+S.token,"apikey":SB_KEY},
-      body:JSON.stringify({code:roomCode,host_name:S.user.pseudo||S.user.prenom,max_players:maxPlayers,lang:S.lang,target_user_ids:targetUserIds})
+      body:JSON.stringify({code:roomCode,host_name:S.user.pseudo||S.user.prenom,max_players:maxPlayers,lang:S.lang,target_user_ids:targetUserIds,broadcast:!hasTargets})
     });
-    console.log("Challenge notification sent via OneSignal to",targetUserIds.length,"members");
+    console.log("Challenge notification sent via OneSignal to",hasTargets?targetUserIds.length+" members":"all active users");
   }catch(e){console.log("notifyAllPlayers err",e);}
 }
 
@@ -3775,18 +3772,28 @@ function renderDefiWaiting(){
     var isH=p.user_id===DEFI.room.host_id;
     h+='<div class="defi-player'+(isH?" host":"")+(p.ready?" ready":"")+'"><div class="defi-av">'+esc((p.pseudo||p.prenom?(p.pseudo||p.prenom)[0]:"?").toUpperCase())+'</div>';
     h+='<div class="defi-pname">'+(isMe?"⭐ ":"")+esc(p.pseudo||p.prenom)+(isH?' <span style="font-size:9px;background:var(--gold);color:#fff;border-radius:10px;padding:1px 6px;font-weight:700">HOST</span>':'');
-    h+='</div><span style="font-size:14px">'+(p.ready?"✅":"⏳")+'</span></div>';
+    h+='</div>';
+    if(isMe&&!isH&&!p.ready){
+      h+='<button onclick="setReady()" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:4px 10px;font-family:Nunito,sans-serif;font-weight:700;font-size:10px;cursor:pointer">🙌 '+(lbl?"Allons-y !":"Let\\'s go!")+'</button>';
+    } else {
+      h+='<span style="font-size:14px">'+(p.ready||isH?"✅":"⏳")+'</span>';
+    }
+    h+='</div>';
   }
   if(DEFI.players.length<2){
     h+='<div style="text-align:center;padding:12px;color:var(--gray);font-size:11px">⏳ '+(lbl?"En attente de joueurs...":"Waiting for players...")+'</div>';
   }
   h+='</div>';
   if(isHost){
-    var canStart=DEFI.players.length>=2;
+    var nonHostPlayers=DEFI.players.filter(function(p){return p.user_id!==DEFI.room.host_id;});
+    var allReady=nonHostPlayers.length>0&&nonHostPlayers.every(function(p){return p.ready;});
+    var canStart=DEFI.players.length>=2&&allReady;
     if(canStart){
       h+='<button class="defi-btn" style="margin-top:8px" onclick="startDefi()">🚀 '+(lbl?"Démarrer le défi !":"Start the challenge!")+'</button>';
-    } else {
+    } else if(DEFI.players.length<2){
       h+='<button class="defi-btn" style="margin-top:8px;opacity:.5;cursor:not-allowed">⏳ '+(lbl?"Attends au moins 1 autre joueur...":"Wait for at least 1 more player...")+'</button>';
+    } else {
+      h+='<button class="defi-btn" style="margin-top:8px;opacity:.5;cursor:not-allowed">🙌 '+(lbl?"En attente que tout le monde soit prêt...":"Waiting for everyone to be ready...")+'</button>';
     }
   }
   h+='<button class="defi-btn-out" onclick="leaveRoom()">🚪 '+(lbl?"Quitter la salle":"Leave room")+'</button>';
@@ -3795,6 +3802,11 @@ function renderDefiWaiting(){
 
 async function setReady(){
   if(!DEFI.room)return;
+  // Mise à jour immédiate de l'affichage local, sans attendre l'aller-retour serveur
+  for(var i=0;i<DEFI.players.length;i++){
+    if(DEFI.players[i].user_id===S.user.id){DEFI.players[i].ready=true;break;}
+  }
+  renderDefiWaiting();
   await sbPatch("cev_room_players?room_id=eq."+DEFI.room.id+"&user_id=eq."+S.user.id,{ready:true});
 }
 
