@@ -3019,15 +3019,6 @@ function renderDefiChoice(){
   var used=getDefiUsed();
   var left=Math.max(0,DEFI_MAX_PER_DAY-used);
   var h="";
-  h+='<div class="defi-card" style="text-align:center;background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff">';
-  h+='<div style="font-size:40px;margin-bottom:8px">&#9876;</div>';
-  h+='<h2 style="font-family:Playfair Display,serif;font-size:20px;color:#fff;margin-bottom:5px">';
-  h+=lbl?"Mode Challenge":"Challenge Mode";
-  h+='</h2>';
-  h+='<p style="font-size:11px;color:rgba(255,255,255,.8)">';
-  h+=lbl?"Choisis comment tu veux défier !":"Choose how you want to play!";
-  h+='</p>';
-  h+='</div>';
 
   h+='<div class="defi-card" style="text-align:center;cursor:pointer" onclick="renderBotSetup()">';
   h+='<div style="font-size:34px;margin-bottom:6px">🤖</div>';
@@ -3044,7 +3035,7 @@ function renderDefiChoice(){
   }else{
     h+='<div class="defi-card" style="text-align:center;cursor:pointer" onclick="openDefiRoomMenu()">';
     h+='<div style="font-size:34px;margin-bottom:6px">👥</div>';
-    h+='<h3 style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px">'+(lbl?"Créer ou rejoindre un challenge":"Create or join a challenge")+'</h3>';
+    h+='<h3 style="font-size:15px;font-weight:800;color:var(--dark);margin-bottom:4px">'+(lbl?"Défier un(e) ou plusieurs Ami(e)s":"Challenge one or more friends")+'</h3>';
     h+='<p style="font-size:11px;color:var(--gray);margin-bottom:10px">'+(lbl?"Défie 1 à 11 amis en temps réel avec un code":"Challenge 1 to 11 friends in real time with a code")+'</p>';
     h+='<div style="font-size:10px;color:var(--gray);font-weight:700;margin-bottom:8px">&#9876; '+left+'/'+DEFI_MAX_PER_DAY+' '+(lbl?"challenges aujourd'hui":"challenges left today")+'</div>';
     h+='<button class="defi-btn" onclick="event.stopPropagation();openDefiRoomMenu()">👥 '+(lbl?"Créer / rejoindre":"Create / join")+'</button>';
