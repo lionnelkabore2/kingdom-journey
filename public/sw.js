@@ -74,42 +74,70 @@ self.addEventListener('fetch', function(e){
   );
 });
 
-// Recevoir les notifications push
+// Recevoir les notifications push — gère 3 types distincts, sans jamais
+// mélanger leur contenu : challenge, verset du jour, motivation.
+// OneSignal imbrique les données personnalisées (passées via "data" côté
+// serveur) sous raw.custom.a — c'est là qu'on lit le vrai "type" et le
+// reste des infos, pas à la racine du JSON.
 self.addEventListener('push', function(e){
   if(!e.data)return;
-  var data={};
-  try{data=e.data.json();}catch(err){data={title:"Quiz Biblique C.E.V",body:e.data.text()};}
-  var title=data.title||"⚔️ Challenge Biblique !";
+  var raw={};
+  try{raw=e.data.json();}catch(err){raw={};}
+
+  var custom=(raw.custom&&raw.custom.a)||{};
+  var notifType=custom.type||"generic";
+  var payloadTitle=raw.title||"Quiz Biblique C.E.V";
+  var payloadBody=raw.alert||raw.body||"";
+  var icon="/icons/icon-192x192.png";
+
   var options={
-    body:data.body||"Un challenge vient d'être créé !",
-    icon:"/icons/icon-192x192.png",
-    badge:"/icons/icon-192x192.png",
+    body:payloadBody,
+    icon:icon,
+    badge:icon,
     vibrate:[200,100,200],
-    tag:"cev-challenge",
-    renotify:true,
-    data:{code:data.code||"",url:"/"},
-    actions:[
+    data:{type:notifType,code:custom.code||"",url:custom.url||raw.url||"/"}
+  };
+
+  if(notifType==="challenge"){
+    options.tag="cev-challenge";
+    options.renotify=true;
+    options.actions=[
       {action:"join",title:"Rejoindre ⚔️"},
       {action:"dismiss",title:"Plus tard"}
-    ]
-  };
+    ];
+  } else if(notifType==="daily_verse"){
+    options.tag="cev-daily-verse";
+  } else if(notifType==="motivation"){
+    options.tag="cev-motivation";
+  } else {
+    options.tag="cev-generic";
+  }
+
   e.waitUntil(
-    self.registration.showNotification(title,options)
+    self.registration.showNotification(payloadTitle,options)
   );
 });
 
-// Clic sur la notification
+// Clic sur la notification — le comportement dépend du type, pas d'un
+// chemin unique codé en dur pour tout le monde.
 self.addEventListener('notificationclick', function(e){
   e.notification.close();
   if(e.action==="dismiss")return;
-  var code=e.notification.data.code||"";
-  var url="/?join="+code;
+  var d=e.notification.data||{};
+  var url=d.url||"/";
+  if(d.type==="challenge"&&e.action==="join"&&d.code){
+    url="/?join="+d.code;
+  }
   e.waitUntil(
     self.clients.matchAll({type:"window",includeUncontrolled:true}).then(function(clients){
       for(var i=0;i<clients.length;i++){
         if(clients[i].url.indexOf(self.location.origin)===0){
           clients[i].focus();
-          clients[i].postMessage({type:"join_challenge",code:code});
+          if(d.type==="challenge"&&d.code){
+            clients[i].postMessage({type:"join_challenge",code:d.code});
+          } else if(clients[i].navigate){
+            clients[i].navigate(url);
+          }
           return;
         }
       }
