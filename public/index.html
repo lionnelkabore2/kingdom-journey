@@ -1250,6 +1250,10 @@ function loginNow(uid,prenom,ville,score,tok,pseudo){
   // OneSignal après 5s
   setTimeout(function(){
     try{
+      // Sur iPhone/iPad hors app installée sur l'écran d'accueil, les notifications
+      // sont techniquement impossibles (limite Apple) — inutile de proposer, la
+      // bannière d'installation ci-dessus est le seul chemin possible dans ce cas.
+      if(typeof isIOSSafariNotInstalled==="function"&&isIOSSafariNotInstalled())return;
       if(window.OneSignalDeferred){
         window.OneSignalDeferred.push(async function(os){
           try{if(!os.Notifications.permission)await os.Slidedown.promptPush();await os.login(uid);}catch(e){}
@@ -5416,8 +5420,8 @@ function showIOSInstallBanner(){
   div.innerHTML=
     '<span style="font-size:22px">📲</span>'+
     '<span style="flex:1">'+(fr
-      ?'Installe l\'app : appuie sur <b>Partager</b> <span style="opacity:.8">⬆️</span> puis <b>"Sur l\'écran d\'accueil"</b>.'
-      :'Install the app: tap <b>Share</b> <span style="opacity:.8">⬆️</span> then <b>"Add to Home Screen"</b>.')+
+      ?'Pour recevoir le verset du jour et les rappels : installe l\'app en appuyant sur <b>Partager</b> <span style="opacity:.8">⬆️</span> puis <b>"Sur l\'écran d\'accueil"</b>. C\'est obligatoire sur iPhone pour activer les notifications.'
+      :'To receive the daily verse and reminders: install the app by tapping <b>Share</b> <span style="opacity:.8">⬆️</span> then <b>"Add to Home Screen"</b>. This is required on iPhone to enable notifications.')+
     '</span>'+
     '<button onclick="dismissIOSInstallBanner()" style="background:none;border:none;color:#fff;opacity:.7;font-size:20px;padding:4px 8px;cursor:pointer">×</button>';
   document.body.appendChild(div);
@@ -5483,6 +5487,7 @@ window.onload=async function(){
         // voyaient jamais cette demande en rouvrant l'app normalement.
         setTimeout(function(){
           try{
+            if(typeof isIOSSafariNotInstalled==="function"&&isIOSSafariNotInstalled())return;
             if(window.OneSignalDeferred){
               window.OneSignalDeferred.push(async function(os){
                 try{if(!os.Notifications.permission)await os.Slidedown.promptPush();await os.login(d.uid);}catch(e){}
