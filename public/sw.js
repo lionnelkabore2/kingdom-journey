@@ -125,7 +125,10 @@ self.addEventListener('notificationclick', function(e){
   if(e.action==="dismiss")return;
   var d=e.notification.data||{};
   var url=d.url||"/";
-  if(d.type==="challenge"&&e.action==="join"&&d.code){
+  // Peu importe qu'on clique sur le corps de la notification ou sur le bouton
+  // "Rejoindre" — un clic sur une notification de challenge doit toujours amener
+  // au remplissage automatique du code de la salle.
+  if(d.type==="challenge"&&d.code){
     url="/?join="+d.code;
   }
   e.waitUntil(
