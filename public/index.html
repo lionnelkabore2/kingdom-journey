@@ -36,6 +36,32 @@
         }
       }
     });
+
+    // Écoute officielle des clics sur notification via l'API OneSignal — plus fiable
+    // que d'essayer d'intercepter le clic depuis notre propre sw.js, car OneSignal
+    // gère les notifications via SON PROPRE service worker interne, qui peut ignorer
+    // silencieusement toute logique personnalisée écrite dans sw.js. C'est la méthode
+    // recommandée par OneSignal pour router correctement selon le type de notification.
+    OneSignal.Notifications.addEventListener("click", function(event){
+      try{
+        var data=(event&&event.notification&&event.notification.additionalData)||{};
+        var notifType=data.type||"";
+        if(notifType==="challenge"&&data.code){
+          setTimeout(function(){
+            if(typeof goTo==="function")goTo("defi");
+            setTimeout(function(){
+              var inp=document.getElementById("room-code-inp");
+              if(inp){inp.value=data.code;joinRoom();}
+            },500);
+          },300);
+        } else if(notifType==="daily_verse"){
+          setTimeout(function(){if(typeof goTo==="function")goTo("verset");},300);
+        } else if(notifType==="motivation"){
+          var target=(data.url&&data.url.indexOf("bible")!==-1)?"bible":"quiz";
+          setTimeout(function(){if(typeof goTo==="function")goTo(target);},300);
+        }
+      }catch(e){console.log("OneSignal click handler err",e);}
+    });
   });
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
