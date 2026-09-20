@@ -2824,9 +2824,16 @@ function initApp(){
 async function fetchAllTimeRank(){
   if(!S.user)return;
   try{
-    // Compter combien d'utilisateurs ont un score_total supérieur au nôtre
-    var myXP=getXP();
-    var r=await fetch(SB_URL+"/rest/v1/cev_profiles?score_total=gt."+myXP+"&select=id",{
+    // Récupère mon propre score all-time depuis la vue agrégée (somme de tous mes
+    // scores journaliers depuis le début), pas cev_profiles.score_total qui n'est
+    // jamais mis à jour et vaut toujours 0.
+    var myR=await fetch(SB_URL+"/rest/v1/cev_leaderboard_alltime?user_id=eq."+S.user.id+"&select=score",{
+      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
+    });
+    var myData=myR.ok?await myR.json():[];
+    var myScore=(myData&&myData[0])?myData[0].score:0;
+    // Compte combien d'utilisateurs ont un score all-time strictement supérieur au mien
+    var r=await fetch(SB_URL+"/rest/v1/cev_leaderboard_alltime?score=gt."+myScore+"&select=user_id",{
       headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}
     });
     if(!r.ok)return;
@@ -4609,6 +4616,11 @@ function completeBibleChapAfterQuiz(section,chap){
   if(r[section].indexOf(chap)===-1){
     r[section].push(chap);
     addXP(5);
+    // Synchronise la date de dernière lecture biblique vers le serveur, pour que
+    // les rappels de motivation puissent détecter les utilisateurs en retard.
+    if(S.user){
+      try{sbPatch("cev_profiles?id=eq."+S.user.id,{last_bible_read:todayStr()});}catch(e){}
+    }
     var b=document.createElement("div");
     b.style.cssText="position:fixed;top:80px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:8px 14px;border-radius:14px;font-weight:700;font-size:11px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)";
     b.textContent="📖 +5 XP";
@@ -5352,6 +5364,30 @@ async function handleOAuthCallback(){
   }catch(e){console.log("OAuth callback err",e);return false;}
 }
 
+// Lit le paramètre ?notif=verse|play|bible dans l'URL — posé par les notifications
+// push envoyées automatiquement (verset du jour à 7h, rappels de motivation).
+function checkNotifFromUrl(){
+  try{
+    var params=new URLSearchParams(location.search);
+    var notif=params.get("notif");
+    if(!notif)return;
+    history.replaceState(null,"",location.pathname); // Nettoie l'URL
+    setTimeout(function(){
+      if(notif==="verse"){
+        // Ouvre l'accueil (où le verset du jour est affiché) et propose direct le partage
+        goTo("accueil");
+        setTimeout(function(){
+          if(typeof shareVerseLink==="function")shareVerseLink();
+        },700);
+      } else if(notif==="play"){
+        goTo("quiz");
+      } else if(notif==="bible"){
+        goTo("bible");
+      }
+    },1000);
+  }catch(e){console.log("checkNotifFromUrl err",e);}
+}
+
 // Lit le paramètre ?join=CODE dans l'URL — posé par sw.js quand l'utilisateur ouvre l'app
 // en cliquant sur une notification de challenge alors qu'elle était complètement fermée.
 function checkJoinFromUrl(){
@@ -5451,6 +5487,20 @@ window.onload=async function(){
         // Rejoindre automatiquement un challenge si l'app a été ouverte depuis une notification
         // (cas où l'app était complètement fermée — le service worker ouvre alors /?join=CODE)
         checkJoinFromUrl();
+        checkNotifFromUrl();
+        // Propose les notifications push aux utilisateurs déjà connectés qui n'ont
+        // jamais répondu à cette demande — avant, cela ne se produisait qu'à la toute
+        // première connexion (loginNow), donc les utilisateurs déjà présents ne
+        // voyaient jamais cette demande en rouvrant l'app normalement.
+        setTimeout(function(){
+          try{
+            if(window.OneSignalDeferred){
+              window.OneSignalDeferred.push(async function(os){
+                try{if(!os.Notifications.permission)await os.Slidedown.promptPush();await os.login(d.uid);}catch(e){}
+              });
+            }
+          }catch(e){}
+        },5000);
         return;
       }
     }
