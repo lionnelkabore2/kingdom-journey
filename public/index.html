@@ -1259,6 +1259,8 @@ function loginNow(uid,prenom,ville,score,tok,pseudo){
   // Arrière-plan : streak + XP (n'écrit plus le score — laissé à syncTodayScoreFromServer / au jeu réel)
   setTimeout(async function(){
     try{
+      await syncXPFromServer();
+      await syncBibleReadFromServer();
       var streak=await updateStreak();
       var bonusKey="cev_streak_bonus_"+todayStr()+"_"+uid;
       if(!localStorage.getItem(bonusKey)){
@@ -1913,7 +1915,27 @@ var LEVELS=[
 
 function getXPKey(){return"cev_xp_"+(S.user?S.user.id:"");}
 function getXP(){try{return parseInt(localStorage.getItem(getXPKey())||"0");}catch(e){return 0;}}
-function setXP(v){try{localStorage.setItem(getXPKey(),v);}catch(e){}}
+function setXP(v){try{localStorage.setItem(getXPKey(),v);}catch(e){}
+  if(S.user){try{sbPatch("cev_profiles?id=eq."+S.user.id,{xp_total:v});}catch(e){}}
+}
+
+// Fusionne le niveau/XP local et serveur au login — garde toujours le plus élevé
+// des deux, pour ne jamais perdre de progression en changeant d'appareil.
+async function syncXPFromServer(){
+  if(!S.user)return;
+  try{
+    var r=await sbGet("cev_profiles?id=eq."+S.user.id+"&select=xp_total");
+    if(!r||!r.ok||!r.data||!r.data[0])return;
+    var serverXP=r.data[0].xp_total||0;
+    var localXP=getXP();
+    if(serverXP>localXP){
+      localStorage.setItem(getXPKey(),serverXP);
+      if(typeof updateXPBar==="function")updateXPBar();
+    } else if(localXP>serverXP){
+      await sbPatch("cev_profiles?id=eq."+S.user.id,{xp_total:localXP});
+    }
+  }catch(e){}
+}
 function getCurrentLevel(xp){
   var lv=LEVELS[0];
   for(var i=LEVELS.length-1;i>=0;i--){if(xp>=LEVELS[i].xp){lv=LEVELS[i];break;}}
@@ -4580,11 +4602,30 @@ var BIBLE_PLAN=(function(){
 
 function getBibleKey(){return"cev_bible_"+(S.user?S.user.id:"anon");}
 function getBibleRead(){try{var r=localStorage.getItem(getBibleKey());return r?JSON.parse(r):{at:[],ps:[],nt:[]};}catch(e){return{at:[],ps:[],nt:[]};}}
-function saveBibleRead(r){try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}}
+function saveBibleRead(r){
+  try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}
+  if(S.user){try{sbPatch("cev_profiles?id=eq."+S.user.id,{bible_progress:r});}catch(e){}}
+}
 
-function getBibleKey(){return"cev_bible_"+(S.user?S.user.id:"anon");}
-function getBibleRead(){try{var r=localStorage.getItem(getBibleKey());return r?JSON.parse(r):{at:[],ps:[],nt:[]};}catch(e){return{at:[],ps:[],nt:[]};}}
-function saveBibleRead(r){try{localStorage.setItem(getBibleKey(),JSON.stringify(r));}catch(e){}}
+// Fusionne la progression de lecture biblique locale et serveur au login — union des
+// chapitres lus de chaque côté (une lecture ne doit jamais "disparaître", ni d'un
+// côté ni de l'autre), pour ne jamais perdre de progression en changeant d'appareil.
+async function syncBibleReadFromServer(){
+  if(!S.user)return;
+  try{
+    var r=await sbGet("cev_profiles?id=eq."+S.user.id+"&select=bible_progress");
+    if(!r||!r.ok||!r.data||!r.data[0])return;
+    var server=r.data[0].bible_progress||{at:[],ps:[],nt:[]};
+    var local=getBibleRead();
+    var merged={at:[],ps:[],nt:[]};
+    ["at","ps","nt"].forEach(function(sec){
+      var s=new Set((server[sec]||[]).concat(local[sec]||[]));
+      merged[sec]=Array.from(s);
+    });
+    localStorage.setItem(getBibleKey(),JSON.stringify(merged));
+    await sbPatch("cev_profiles?id=eq."+S.user.id,{bible_progress:merged});
+  }catch(e){}
+}
 function getBibleStartKey(){return"cev_bible_start_"+(S.user?S.user.id:"anon");}
 function getBiblePlanKey(){return"cev_bible_plan_"+(S.user?S.user.id:"anon");}
 function confirmResetBiblePlan(){
@@ -5515,6 +5556,8 @@ window.onload=async function(){
         // locale date d'un autre jour (le score ne doit pas être reporté d'un jour sur l'autre)
         // ou d'un autre appareil dont la progression n'était pas encore reflétée ici.
         syncTodayScoreFromServer();
+        syncXPFromServer();
+        syncBibleReadFromServer();
         // Rejoindre automatiquement un challenge si l'app a été ouverte depuis une notification
         // (cas où l'app était complètement fermée — le service worker ouvre alors /?join=CODE)
         checkJoinFromUrl();
